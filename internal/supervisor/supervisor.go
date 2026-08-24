@@ -12,10 +12,11 @@ import (
 )
 
 type Request struct {
-	Name      string             `json:"name"`
-	Mode      inspector.Mode     `json:"mode"`
-	Hash      inspector.HashMode `json:"hash"`
-	TimeoutMS int64              `json:"timeout_ms"`
+	Name           string             `json:"name"`
+	Mode           inspector.Mode     `json:"mode"`
+	Hash           inspector.HashMode `json:"hash"`
+	ExpectedSHA256 string             `json:"expected_sha256,omitempty"`
+	TimeoutMS      int64              `json:"timeout_ms"`
 }
 
 func Run(ctx context.Context, executable string, file *os.File, request Request) inspector.Result {

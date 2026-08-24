@@ -9,6 +9,8 @@ import (
 	"os"
 	"sort"
 	"strings"
+
+	"github.com/tetracoralla/file-vitals/internal/version"
 )
 
 func inspect(ctx context.Context, source Source, options Options) Result {
@@ -38,10 +40,20 @@ func inspect(ctx context.Context, source Source, options Options) Result {
 	if err != nil {
 		return errorResult(source, options, "E_FILE_READ", "The file header could not be read.")
 	}
-	result.Identity = detectIdentity(header, source.Size, source.Name)
-	addProvenance(&result, "internal-signatures", "0.1.0", "used")
+	result.Identity = detectIdentityFromFile(source.File, header, source.Size, source.Name)
+	addProvenance(&result, "internal-signatures", version.Version, "used")
 	if result.Identity.Kind != "unknown" {
 		result.Status = "ok"
+	}
+	if indirection := inspectIndirection(header, source.Size); indirection != nil {
+		result.Indirection = indirection
+		result.Identity.Kind = "text"
+		result.Identity.MediaType = "text/plain"
+		result.Identity.Format = "Git LFS pointer"
+		result.Identity.Confidence = "exact"
+		result.Identity.Candidates = append(result.Identity.Candidates, Candidate{Source: "pointer-structure", MediaType: "text/plain", Format: "Git LFS pointer", Confidence: "exact"})
+		result.Status = "ok"
+		reconcileIdentityExtension(&result)
 	}
 	if result.Identity.ExtensionMatch != nil && !*result.Identity.ExtensionMatch {
 		addDiagnostic(&result, "EXTENSION_MISMATCH", "warning", "The filename extension does not match the detected byte signature.")
@@ -54,7 +66,15 @@ func inspect(ctx context.Context, source Source, options Options) Result {
 		addProvenance(&result, "family-probe", "", "skipped")
 	}
 
-	if options.Hash == HashSHA256 {
+	if options.ExpectedSHA256 != "" {
+		expected, err := NormalizeExpectedSHA256(options.ExpectedSHA256)
+		if err != nil {
+			return errorResult(source, options, "E_INVALID_OPTIONS", "Expected SHA-256 must contain exactly 64 hexadecimal characters.")
+		}
+		options.ExpectedSHA256 = expected
+		result.Integrity.ExpectedSHA256 = expected
+	}
+	if options.Hash == HashSHA256 || options.ExpectedSHA256 != "" {
 		if source.Size > MaxHashBytes {
 			makePartial(&result)
 			addDiagnostic(&result, "HASH_SIZE_LIMIT", "warning", "SHA-256 was not computed because the file exceeds the fixed hash budget.")
@@ -67,9 +87,17 @@ func inspect(ctx context.Context, source Source, options Options) Result {
 		} else {
 			result.Integrity.SHA256 = digest
 			addProvenance(&result, "sha256", "", "used")
+			if options.ExpectedSHA256 != "" {
+				matches := digest == options.ExpectedSHA256
+				result.Integrity.SHA256Matches = &matches
+				if !matches {
+					addDiagnostic(&result, "SHA256_MISMATCH", "warning", "The computed SHA-256 does not match the supplied expected digest.")
+				}
+			}
 		}
 	}
 	result.Traits = deriveTraits(result)
+	result.Constraints = deriveConstraints(result)
 	if ctx.Err() != nil {
 		return errorResult(source, options, "E_TIMEOUT", "The inspection deadline was exceeded.")
 	}
@@ -77,6 +105,17 @@ func inspect(ctx context.Context, source Source, options Options) Result {
 		return errorResult(source, options, "E_RESPONSE_TOO_LARGE", "The bounded result could not fit the response budget.")
 	}
 	return result
+}
+
+// NormalizeExpectedSHA256 is shared by public adapters so an invalid digest is
+// rejected before a worker starts and normalized identically in every carrier.
+func NormalizeExpectedSHA256(value string) (string, error) {
+	expected := strings.ToLower(value)
+	decoded, err := hex.DecodeString(expected)
+	if err != nil || len(decoded) != sha256.Size || len(expected) != sha256.Size*2 {
+		return "", errors.New("invalid SHA-256")
+	}
+	return expected, nil
 }
 
 func inspectFamily(ctx context.Context, result *Result, source Source, header []byte, options Options) {
@@ -99,7 +138,7 @@ func inspectFamily(ctx context.Context, result *Result, source Source, header []
 	if needsText {
 		info := inspectTextBytes(content, truncated)
 		result.Text = &info
-		addProvenance(result, "text", "0.1.0", "used")
+		addProvenance(result, "text", version.Version, "used")
 	}
 	if structured != "" {
 		validationConclusive := false
@@ -132,6 +171,19 @@ func inspectFamily(ctx context.Context, result *Result, source Source, header []
 			reconcileIdentityExtension(result)
 		}
 	}
+	if mediaType == "image/svg+xml" {
+		if truncated {
+			result.SVG = &SVGInfo{}
+		} else if result.Structured != nil && result.Structured.Parseable != nil && *result.Structured.Parseable {
+			if info, err := inspectSVGStructure(content); err == nil {
+				result.SVG = info
+			} else {
+				result.SVG = &SVGInfo{}
+				makePartial(result)
+				addDiagnostic(result, "SVG_STRUCTURE_LIMIT", "warning", "SVG active-content and external-reference inspection did not complete within the structural limit.")
+			}
+		}
+	}
 	mediaType = result.Identity.MediaType
 
 	switch result.Identity.Kind {
@@ -152,7 +204,7 @@ func inspectFamily(ctx context.Context, result *Result, source Source, header []
 		} else {
 			result.Image = imageInfo
 			setParseable(result, true)
-			addProvenance(result, "image", "0.1.0", "used")
+			addProvenance(result, "image", version.Version, "used")
 		}
 	case "media", "audio", "video":
 		handleMediaProbe(ctx, source.File, result)
@@ -170,13 +222,14 @@ func inspectFamily(ctx context.Context, result *Result, source Source, header []
 		} else {
 			result.Archive = archive
 			setParseable(result, true)
-			addProvenance(result, "archive", "0.1.0", "used")
+			addProvenance(result, "archive", version.Version, "used")
 			if archive.ScanTruncated {
 				makePartial(result)
 				addDiagnostic(result, "ARCHIVE_SCAN_LIMIT", "warning", "Archive totals cover only the bounded scanned prefix.")
 			}
-			if ooxml != "" {
-				promoteOOXML(result, ooxml)
+			if ooxml != nil {
+				result.OOXML = ooxml
+				promoteOOXML(result, ooxml.Kind)
 				reconcileIdentityExtension(result)
 			} else if !archive.ScanTruncated && isOOXMLMediaType(extensionMediaType(result.File.Extension)) {
 				reconcileIdentityExtension(result)
@@ -185,7 +238,7 @@ func inspectFamily(ctx context.Context, result *Result, source Source, header []
 	case "document":
 		if mediaType == "application/pdf" {
 			if err := inspectPDF(ctx, source.File, result); errors.Is(err, errProbeUnavailable) {
-				result.PDF = &PDFInfo{Version: result.Identity.FormatVersion}
+				result.PDF = &PDFInfo{Version: result.Identity.FormatVersion, TextLayer: "unknown"}
 				makePartial(result)
 				addProvenance(result, "pdfinfo", "", "unavailable")
 				addDiagnostic(result, "PDF_PROBE_UNAVAILABLE", "warning", "PDF identity is known, but page and encryption properties are unavailable.")
@@ -215,7 +268,7 @@ func inspectFamily(ctx context.Context, result *Result, source Source, header []
 		} else {
 			result.Font = font
 			setParseable(result, true)
-			addProvenance(result, "font", "0.1.0", "used")
+			addProvenance(result, "font", version.Version, "used")
 		}
 	case "binary":
 		binaryInfo, err := inspectBinary(source.File, header, result.Identity.Format)
@@ -226,7 +279,7 @@ func inspectFamily(ctx context.Context, result *Result, source Source, header []
 		} else {
 			result.Binary = binaryInfo
 			setParseable(result, true)
-			addProvenance(result, "executable", "0.1.0", "used")
+			addProvenance(result, "executable", version.Version, "used")
 		}
 	}
 }
@@ -275,7 +328,14 @@ func promoteStructuredIdentity(result *Result, format string) {
 	}
 }
 
-var ooxmlPromotions = map[string][3]string{"docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Word document", "document"}, "xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Excel workbook", "document"}, "pptx": {"application/vnd.openxmlformats-officedocument.presentationml.presentation", "PowerPoint presentation", "document"}}
+var ooxmlPromotions = map[string][3]string{
+	"docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document", "Word document", "document"},
+	"docm": {"application/vnd.ms-word.document.macroEnabled.12", "Macro-enabled Word document", "document"},
+	"xlsx": {"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Excel workbook", "document"},
+	"xlsm": {"application/vnd.ms-excel.sheet.macroEnabled.12", "Macro-enabled Excel workbook", "document"},
+	"pptx": {"application/vnd.openxmlformats-officedocument.presentationml.presentation", "PowerPoint presentation", "document"},
+	"pptm": {"application/vnd.ms-powerpoint.presentation.macroEnabled.12", "Macro-enabled PowerPoint presentation", "document"},
+}
 
 func promoteOOXML(result *Result, kind string) {
 	value := ooxmlPromotions[kind]
@@ -319,7 +379,13 @@ func deriveTraits(result Result) []string {
 	}
 	switch result.Identity.Kind {
 	case "text":
-		traits = append(traits, "text_extractable")
+		// The text routing trait claims the bounded text probe could classify the
+		// bytes. An unclassifiable encoding keeps the identity evidence but must
+		// not claim extractability; quick mode has no Text node yet, so the
+		// identity alone carries the trait there.
+		if result.Text == nil || result.Text.Encoding.Certainty != "unknown" {
+			traits = append(traits, "text_extractable")
+		}
 	case "data":
 		if result.Text != nil {
 			traits = append(traits, "text_extractable")
@@ -336,7 +402,7 @@ func deriveTraits(result Result) []string {
 		traits = append(traits, "previewable")
 		if result.Identity.MediaType == "application/pdf" {
 			traits = append(traits, "page_addressable")
-			if result.PDF != nil && result.PDF.Encrypted != nil && !*result.PDF.Encrypted {
+			if result.PDF != nil && result.PDF.Encrypted != nil && !*result.PDF.Encrypted && result.PDF.TextLayer == "present" {
 				traits = append(traits, "text_extractable")
 			}
 		}
@@ -349,6 +415,69 @@ func deriveTraits(result Result) []string {
 	}
 	sort.Strings(traits)
 	return traits
+}
+
+func deriveConstraints(result Result) []string {
+	constraints := []string{}
+	if result.Integrity.SHA256Matches != nil && !*result.Integrity.SHA256Matches {
+		constraints = append(constraints, "integrity_mismatch")
+	}
+	if result.Indirection != nil {
+		constraints = append(constraints, "indirect_content")
+	}
+	if result.Archive != nil {
+		if result.Archive.Encrypted {
+			constraints = append(constraints, "encrypted")
+		}
+		if result.Archive.PathFacts.AbsolutePaths > 0 || result.Archive.PathFacts.ParentPaths > 0 {
+			constraints = append(constraints, "archive_unsafe_paths")
+		}
+		if result.Archive.PathFacts.LinkEntries > 0 {
+			constraints = append(constraints, "archive_links")
+		}
+		if result.Archive.PathFacts.DeviceEntries > 0 {
+			constraints = append(constraints, "archive_devices")
+		}
+	}
+	if result.PDF != nil && result.PDF.Encrypted != nil && *result.PDF.Encrypted {
+		constraints = append(constraints, "encrypted")
+	}
+	if result.OOXML != nil {
+		if result.OOXML.MacroEnabled {
+			constraints = append(constraints, "active_content")
+		}
+		if result.OOXML.ExternalRelationships > 0 {
+			constraints = append(constraints, "external_references")
+		}
+		if result.OOXML.EmbeddedObjects > 0 {
+			constraints = append(constraints, "embedded_objects")
+		}
+	}
+	if result.SVG != nil {
+		if result.SVG.ScriptCount > 0 {
+			constraints = append(constraints, "active_content")
+		}
+		if result.SVG.ExternalHrefCount > 0 {
+			constraints = append(constraints, "external_references")
+		}
+	}
+	sort.Strings(constraints)
+	return compactSortedStrings(constraints)
+}
+
+func compactSortedStrings(values []string) []string {
+	if len(values) < 2 {
+		return values
+	}
+	write := 1
+	for read := 1; read < len(values); read++ {
+		if values[read] == values[write-1] {
+			continue
+		}
+		values[write] = values[read]
+		write++
+	}
+	return values[:write]
 }
 
 func hashFile(ctx context.Context, file *os.File, size int64) (string, error) {

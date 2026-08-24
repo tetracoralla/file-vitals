@@ -27,6 +27,7 @@ type Spec struct {
 	Env                 []string
 	Stdin               []byte
 	File                *os.File
+	Files               []*os.File
 	StdoutBytes         int
 	StderrBytes         int
 	MemoryBytes         int64
@@ -98,7 +99,9 @@ func Run(ctx context.Context, spec Spec) (Result, error) {
 	if len(spec.Stdin) > 0 {
 		cmd.Stdin = bytes.NewReader(spec.Stdin)
 	}
-	if spec.File != nil {
+	if len(spec.Files) > 0 {
+		cmd.ExtraFiles = append([]*os.File(nil), spec.Files...)
+	} else if spec.File != nil {
 		cmd.ExtraFiles = []*os.File{spec.File}
 	}
 	overflow := make(chan struct{})

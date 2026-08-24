@@ -6,6 +6,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"runtime/debug"
@@ -20,10 +21,8 @@ import (
 // published result and 70 for an unusable worker protocol state.
 func Run(stdout io.Writer) int {
 	debug.SetMemoryLimit(inspector.GoMemoryLimitBytes)
-	decoder := json.NewDecoder(io.LimitReader(os.Stdin, 64*1024))
-	decoder.DisallowUnknownFields()
 	var request supervisor.Request
-	if err := decoder.Decode(&request); err != nil {
+	if !decodeWorkerRequest(64*1024, &request) {
 		return 70
 	}
 	if request.TimeoutMS < 100 || request.TimeoutMS > 60_000 {
@@ -49,6 +48,20 @@ func Run(stdout io.Writer) int {
 	return 0
 }
 
+func decodeWorkerRequest(limit int64, target any) bool {
+	limited := &io.LimitedReader{R: os.Stdin, N: limit + 1}
+	decoder := json.NewDecoder(limited)
+	decoder.DisallowUnknownFields()
+	if decoder.Decode(target) != nil {
+		return false
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return false
+	}
+	return limited.N > 0
+}
+
 // InspectWithRecover keeps a parser panic from killing the worker silently: a
 // crashed process surfaces as a generic E_WORKER_FAILED at the supervisor, but
 // a recovered panic can still return the published result contract.
@@ -58,5 +71,5 @@ func InspectWithRecover(ctx context.Context, source inspector.Source, request su
 			result = inspector.PublicError(request.Name, request.Mode, request.TimeoutMS, "E_INTERNAL", "The inspection worker encountered an internal failure.")
 		}
 	}()
-	return inspector.New().Inspect(ctx, source, inspector.Options{Mode: request.Mode, Hash: request.Hash, Timeout: time.Duration(request.TimeoutMS) * time.Millisecond})
+	return inspector.New().Inspect(ctx, source, inspector.Options{Mode: request.Mode, Hash: request.Hash, ExpectedSHA256: request.ExpectedSHA256, Timeout: time.Duration(request.TimeoutMS) * time.Millisecond})
 }

@@ -83,7 +83,7 @@ func TestValidWorkerResultRoundTrip(t *testing.T) {
 	}
 	// The real binary is only available in cmd/finspect tests; here we verify
 	// the JSON contract with a script that emits a minimal valid result.
-	script := writeWorkerScript(t, `printf '{"schema_version":"1.0","status":"ok","file":{"name":"t","size_bytes":1,"extension":""},"identity":{"kind":"text","media_type":"text/plain","format":"Plain text","confidence":"probable","candidates":[],"conflicts":[]},"traits":[],"integrity":{"readable":true},"diagnostics":[],"provenance":[],"limits":{"mode":"standard","response_bytes_max":262144,"timeout_ms":5000,"memory_bytes_max":402653184}}'`)
+	script := writeWorkerScript(t, `printf '{"schema_version":"1.1","status":"ok","file":{"name":"t","size_bytes":1,"extension":""},"identity":{"kind":"text","media_type":"text/plain","format":"Plain text","confidence":"probable","candidates":[],"conflicts":[]},"traits":[],"constraints":[],"integrity":{"readable":true},"diagnostics":[],"provenance":[],"limits":{"mode":"standard","response_bytes_max":262144,"timeout_ms":5000,"memory_bytes_max":402653184}}'`)
 	result := run(t, script)
 	if result.Status != "ok" || strings.Contains(result.Status, "error") {
 		t.Fatalf("valid worker result was not passed through: %#v", result)

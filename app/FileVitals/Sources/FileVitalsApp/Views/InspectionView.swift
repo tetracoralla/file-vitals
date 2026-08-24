@@ -67,8 +67,11 @@ struct InspectionView: View {
 
     @ViewBuilder
     private var diagnostics: some View {
-        if !result.identity.conflicts.isEmpty || !result.diagnostics.isEmpty || result.error != nil {
+        if !result.constraints.isEmpty || !result.identity.conflicts.isEmpty || !result.diagnostics.isEmpty || result.error != nil {
             FactSection(result.error == nil ? "Warnings" : "Error") {
+                ForEach(result.constraints, id: \.self) { constraint in
+                    diagnosticRow(icon: "exclamationmark.shield.fill", message: SummaryFormatter.constraintLabel(constraint), color: .orange)
+                }
                 ForEach(Array(result.identity.conflicts.enumerated()), id: \.offset) { _, conflict in
                     diagnosticRow(icon: "exclamationmark.triangle.fill", message: conflict, color: .orange)
                 }
@@ -125,6 +128,32 @@ struct InspectionView: View {
                 if let encrypted = pdf.encrypted { FactRow(label: "Encrypted", value: VitalsFormatters.yesNo(encrypted)) }
                 if let title = pdf.title, !title.isEmpty { FactRow(label: "Title", value: title) }
                 if let author = pdf.author, !author.isEmpty { FactRow(label: "Author", value: author) }
+                FactRow(label: "Text layer", value: pdf.textLayer.capitalized)
+                if pdf.textPagesSampled > 0 { FactRow(label: "Text pages sampled", value: "\(pdf.textPagesSampled)") }
+                FactRow(label: "Text scan complete", value: VitalsFormatters.yesNo(pdf.textLayerComplete))
+            }
+        }
+        if let ooxml = result.ooxml {
+            FactSection("Office package") {
+                FactRow(label: "Kind", value: ooxml.kind.uppercased())
+                if let sheets = ooxml.sheetCount { FactRow(label: "Sheets", value: "\(sheets)") }
+                if let slides = ooxml.slideCount { FactRow(label: "Slides", value: "\(slides)") }
+                FactRow(label: "Macros", value: VitalsFormatters.yesNo(ooxml.macroEnabled))
+                FactRow(label: "External references", value: "\(ooxml.externalRelationships)")
+                FactRow(label: "Embedded objects", value: "\(ooxml.embeddedObjects)")
+            }
+        }
+        if let svg = result.svg {
+            FactSection("SVG") {
+                FactRow(label: "Scripts", value: "\(svg.scriptCount)")
+                FactRow(label: "External references", value: "\(svg.externalHrefCount)")
+            }
+        }
+        if let indirection = result.indirection {
+            FactSection("Indirection") {
+                FactRow(label: "Type", value: indirection.kind == "git_lfs_pointer" ? "Git LFS pointer" : "Pointer")
+                FactRow(label: "Object", value: indirection.oid)
+                FactRow(label: "Declared size", value: VitalsFormatters.bytes(indirection.declaredSize))
             }
         }
         if let font = result.font {
@@ -171,6 +200,10 @@ struct InspectionView: View {
             if let count = archive.entryCount { FactRow(label: "Total entries", value: "\(count)") }
             if let total = archive.totalUncompressedBytes { FactRow(label: "Uncompressed", value: VitalsFormatters.bytes(total)) }
             FactRow(label: "Encrypted", value: VitalsFormatters.yesNo(archive.encrypted))
+            if archive.pathFacts.absolutePaths > 0 { FactRow(label: "Absolute paths", value: "\(archive.pathFacts.absolutePaths)") }
+            if archive.pathFacts.parentPaths > 0 { FactRow(label: "Parent paths", value: "\(archive.pathFacts.parentPaths)") }
+            if archive.pathFacts.linkEntries > 0 { FactRow(label: "Link entries", value: "\(archive.pathFacts.linkEntries)") }
+            if archive.pathFacts.deviceEntries > 0 { FactRow(label: "Device or pipe entries", value: "\(archive.pathFacts.deviceEntries)") }
             ForEach(Array((archive.entries ?? []).enumerated()), id: \.offset) { _, entry in
                 HStack(alignment: .firstTextBaseline) {
                     Image(systemName: entry.directory ? "folder" : "doc")
@@ -198,6 +231,8 @@ struct InspectionView: View {
         if let digest = result.integrity.sha256, !digest.isEmpty {
             FactSection("Integrity") {
                 FactRow(label: "SHA-256", value: digest)
+                if let expected = result.integrity.expectedSha256 { FactRow(label: "Expected", value: expected) }
+                if let matches = result.integrity.sha256Matches { FactRow(label: "Matches expected", value: VitalsFormatters.yesNo(matches)) }
             }
         }
     }

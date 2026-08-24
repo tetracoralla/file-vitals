@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://file-vitals.local/schema/workspace-inventory-input-1.0.json",
+  "title": "File Vitals workspace inventory input",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "path": {"type": "string", "minLength": 1, "maxLength": 4096, "default": "."},
+    "max_depth": {"type": "integer", "minimum": 0, "maximum": 8, "default": 4}
+  }
+}

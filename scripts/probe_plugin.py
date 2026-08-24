@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import hashlib
 import os
 import pathlib
 import queue
@@ -26,6 +27,8 @@ def main() -> int:
         workspace = pathlib.Path(temporary)
         (workspace / "sample.json").write_text('{"value":1}\n', encoding="utf-8")
         (workspace / "unknown.jpg").write_bytes(b"\x00\x01\x02\x03")
+        (workspace / "nested").mkdir()
+        (workspace / "nested" / "second.txt").write_text("second\n", encoding="utf-8")
         os.symlink(workspace / "sample.json", workspace / "sample-link")
         with (workspace / "large.bin").open("wb") as handle:
             handle.truncate(1024 * 1024 * 1024)
@@ -80,14 +83,36 @@ def main() -> int:
         send({"jsonrpc":"2.0","method":"notifications/initialized"})
         send({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}})
         tools = receive(2)["result"]["tools"]
-        assert [tool["name"] for tool in tools] == ["file_inspect"]
-        assert tools[0]["inputSchema"]["additionalProperties"] is False
-        assert tools[0]["annotations"] == {"title":"Inspect file","readOnlyHint":True,"destructiveHint":False,"idempotentHint":True,"openWorldHint":False}
+        assert [tool["name"] for tool in tools] == ["file_inspect", "file_inspect_batch", "workspace_inventory"]
+        for tool in tools:
+            assert tool["inputSchema"]["additionalProperties"] is False
+            assert tool["outputSchema"]["additionalProperties"] is False
+            assert tool["annotations"]["readOnlyHint"] is True
+            assert tool["annotations"]["destructiveHint"] is False
+            assert tool["annotations"]["idempotentHint"] is True
+            assert tool["annotations"]["openWorldHint"] is False
 
         send({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"file_inspect","arguments":{"path":"sample.json"}}})
         valid = receive(3)["result"]
         assert valid["isError"] is False
         assert valid["structuredContent"]["identity"]["media_type"] == "application/json"
+
+        digest = hashlib.sha256((workspace / "sample.json").read_bytes()).hexdigest()
+        send({"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"file_inspect","arguments":{"path":"sample.json","mode":"quick","expected_sha256":digest.upper()}}})
+        verified = receive(12)["result"]["structuredContent"]
+        assert verified["integrity"]["sha256_matches"] is True
+
+        send({"jsonrpc":"2.0","id":13,"method":"tools/call","params":{"name":"file_inspect_batch","arguments":{"paths":["sample.json","missing.bin","unknown.jpg"],"mode":"quick"}}})
+        batch = receive(13)["result"]["structuredContent"]
+        assert batch["status"] == "partial"
+        assert [(item["index"], item["path"]) for item in batch["items"]] == [(0,"sample.json"),(1,"missing.bin"),(2,"unknown.jpg")]
+        assert batch["items"][1]["result"]["error"]["code"] == "E_FILE_NOT_FOUND"
+
+        send({"jsonrpc":"2.0","id":14,"method":"tools/call","params":{"name":"workspace_inventory","arguments":{"path":".","max_depth":2}}})
+        inventory = receive(14)["result"]["structuredContent"]
+        assert inventory["files_scanned"] == 4
+        assert inventory["symlinks_skipped"] == 1
+        assert any(item["path"] == "nested/second.txt" for item in inventory["items"])
 
         send({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"file_inspect","arguments":{"path":"sample.json","mdoe":"quick"}}})
         assert receive(4)["result"]["structuredContent"]["error"]["code"] == "E_INVALID_INPUT"
@@ -118,7 +143,7 @@ def main() -> int:
         send({"jsonrpc":"2.0","id":10,"method":"tools/list","params":{"_meta":modern_meta}})
         modern_tools = receive(10)["result"]
         assert modern_tools["resultType"] == "complete"
-        assert [tool["name"] for tool in modern_tools["tools"]] == ["file_inspect"]
+        assert [tool["name"] for tool in modern_tools["tools"]] == ["file_inspect", "file_inspect_batch", "workspace_inventory"]
         send({"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"file_inspect","arguments":{"path":"sample.json","mode":"quick"},"_meta":modern_meta}})
         modern_call = receive(11)["result"]
         assert modern_call["resultType"] == "complete"
@@ -131,7 +156,7 @@ def main() -> int:
             stderr = process.stderr.read() if process.stderr else ""
             raise AssertionError(f"MCP server exited {process.returncode}: {stderr}")
 
-    print("bundled CLI/MCP legacy and modern activation, guards, cancellation, and recovery: ok")
+    print("bundled CLI/MCP single, batch, inventory, guards, cancellation, and recovery: ok")
     return 0
 
 

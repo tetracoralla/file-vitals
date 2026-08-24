@@ -1,6 +1,6 @@
 # Third-party notices
 
-File Vitals 0.1.0 is built with the Go toolchain and includes these
+File Vitals 0.3.0 is built with the Go toolchain and includes these
 direct dependencies in the distributed binary:
 
 - Go 1.26 runtime and standard library — BSD 3-Clause license; see

@@ -31,18 +31,24 @@ const (
 )
 
 type Server struct {
-	executable   string
-	workspace    string
-	inputSchema  any
-	outputSchema any
-	writeMu      sync.Mutex
-	stateMu      sync.Mutex
-	initialized  bool
-	cancels      map[string]map[*callHandle]struct{}
-	callSlots    chan struct{}
-	callTimeout  time.Duration
-	wg           sync.WaitGroup
-	runWorker    func(context.Context, string, *os.File, supervisor.Request) inspector.Result
+	executable            string
+	workspace             string
+	inputSchema           any
+	outputSchema          any
+	batchInputSchema      any
+	batchOutputSchema     any
+	inventoryInputSchema  any
+	inventoryOutputSchema any
+	writeMu               sync.Mutex
+	stateMu               sync.Mutex
+	initialized           bool
+	cancels               map[string]map[*callHandle]struct{}
+	callSlots             chan struct{}
+	callTimeout           time.Duration
+	wg                    sync.WaitGroup
+	runWorker             func(context.Context, string, *os.File, supervisor.Request) inspector.Result
+	runBatchWorker        func(context.Context, string, []*os.File, supervisor.BatchRequest) inspector.BatchResult
+	runInventoryWorker    func(context.Context, string, []*os.File, supervisor.InventoryRequest) inspector.InventoryResult
 }
 
 // callHandle identifies one in-flight call so a duplicate request ID cannot
@@ -52,14 +58,33 @@ type callHandle struct {
 }
 
 func New(executable, workspace string) (*Server, error) {
-	var inputSchema, outputSchema any
+	var inputSchema, outputSchema, batchInputSchema, batchOutputSchema, inventoryInputSchema, inventoryOutputSchema any
 	if err := json.Unmarshal(schemas.FileInspectInput, &inputSchema); err != nil {
 		return nil, err
 	}
 	if err := json.Unmarshal(schemas.InspectionResult, &outputSchema); err != nil {
 		return nil, err
 	}
-	return &Server{executable: executable, workspace: workspace, inputSchema: inputSchema, outputSchema: outputSchema, cancels: map[string]map[*callHandle]struct{}{}, callSlots: make(chan struct{}, maxConcurrentCalls), callTimeout: toolCallTimeout, runWorker: supervisor.Run}, nil
+	if err := json.Unmarshal(schemas.FileInspectBatchInput, &batchInputSchema); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(schemas.FileInspectBatchResult, &batchOutputSchema); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(schemas.WorkspaceInventoryInput, &inventoryInputSchema); err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(schemas.WorkspaceInventoryResult, &inventoryOutputSchema); err != nil {
+		return nil, err
+	}
+	return &Server{
+		executable: executable, workspace: workspace,
+		inputSchema: inputSchema, outputSchema: outputSchema,
+		batchInputSchema: batchInputSchema, batchOutputSchema: batchOutputSchema,
+		inventoryInputSchema: inventoryInputSchema, inventoryOutputSchema: inventoryOutputSchema,
+		cancels: map[string]map[*callHandle]struct{}{}, callSlots: make(chan struct{}, maxConcurrentCalls), callTimeout: toolCallTimeout,
+		runWorker: supervisor.Run, runBatchWorker: supervisor.RunBatch, runInventoryWorker: supervisor.RunInventory,
+	}, nil
 }
 
 type request struct {
@@ -83,9 +108,10 @@ type rpcError struct {
 }
 
 type toolInput struct {
-	Path string             `json:"path"`
-	Mode inspector.Mode     `json:"mode,omitempty"`
-	Hash inspector.HashMode `json:"hash,omitempty"`
+	Path           string             `json:"path"`
+	Mode           inspector.Mode     `json:"mode,omitempty"`
+	Hash           inspector.HashMode `json:"hash,omitempty"`
+	ExpectedSHA256 string             `json:"expected_sha256,omitempty"`
 }
 
 type requestMetaEnvelope struct {
@@ -206,7 +232,7 @@ func (s *Server) handleSync(output io.Writer, req request) {
 			"protocolVersion": protocol,
 			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
 			"serverInfo":      map[string]any{"name": version.Server, "title": version.Product, "version": version.Version},
-			"instructions":    "Use file_inspect once to identify and characterize one relative file inside the granted workspace. Results are read-only and bounded.",
+			"instructions":    "Use exactly one File Vitals operation for the current preflight: file_inspect for one path, file_inspect_batch for an explicit set, or workspace_inventory for a bounded directory overview. Results are read-only and bounded.",
 		}})
 	case "server/discover":
 		if !modern {
@@ -216,7 +242,7 @@ func (s *Server) handleSync(output io.Writer, req request) {
 		result := s.modernResult(map[string]any{
 			"supportedVersions": []string{modernProtocol},
 			"capabilities":      map[string]any{"tools": map[string]any{}},
-			"instructions":      "Use file_inspect once to identify and characterize one relative file inside the granted workspace. Results are read-only and bounded.",
+			"instructions":      "Use exactly one File Vitals operation for the current preflight: file_inspect for one path, file_inspect_batch for an explicit set, or workspace_inventory for a bounded directory overview. Results are read-only and bounded.",
 		}, true)
 		s.write(output, response{JSONRPC: "2.0", ID: req.ID, Result: result})
 	case "ping":
@@ -230,7 +256,7 @@ func (s *Server) handleSync(output io.Writer, req request) {
 			s.write(output, notInitialized(req.ID))
 			return
 		}
-		result := map[string]any{"tools": []any{s.toolDefinition()}}
+		result := map[string]any{"tools": []any{s.toolDefinition(), s.batchToolDefinition(), s.inventoryToolDefinition()}}
 		if modern {
 			result = s.modernResult(result, true)
 		}
@@ -259,8 +285,16 @@ func (s *Server) handleToolCall(ctx context.Context, output io.Writer, req reque
 		s.write(output, invalidParams(req.ID, "tools/call requires a tool name"))
 		return
 	}
-	if params.Name != "file_inspect" {
+	if params.Name != "file_inspect" && params.Name != "file_inspect_batch" && params.Name != "workspace_inventory" {
 		s.write(output, invalidParams(req.ID, "Unknown tool: "+params.Name))
+		return
+	}
+	if params.Name == "file_inspect_batch" {
+		s.handleBatchCall(ctx, output, req.ID, params.Arguments, modern)
+		return
+	}
+	if params.Name == "workspace_inventory" {
+		s.handleInventoryCall(ctx, output, req.ID, params.Arguments, modern)
 		return
 	}
 	input, err := decodeToolInput(params.Arguments)
@@ -268,13 +302,11 @@ func (s *Server) handleToolCall(ctx context.Context, output io.Writer, req reque
 		s.writeToolResult(output, req.ID, inspector.PublicError(input.Path, input.Mode, timeout.Milliseconds(), "E_INVALID_INPUT", err.Error()), modern)
 		return
 	}
-	select {
-	case s.callSlots <- struct{}{}:
-		defer func() { <-s.callSlots }()
-	case <-ctx.Done():
+	if !s.acquireCallSlot(ctx) {
 		s.writeToolResult(output, req.ID, contextFailure(input, ctx.Err(), timeout), modern)
 		return
 	}
+	defer func() { <-s.callSlots }()
 	file, err := authority.OpenRelativeContext(ctx, s.workspace, input.Path)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -286,7 +318,7 @@ func (s *Server) handleToolCall(ctx context.Context, output io.Writer, req reque
 		return
 	}
 	defer file.Close()
-	result := s.runWorker(ctx, s.executable, file, supervisor.Request{Name: input.Path, Mode: input.Mode, Hash: input.Hash, TimeoutMS: timeout.Milliseconds()})
+	result := s.runWorker(ctx, s.executable, file, supervisor.Request{Name: input.Path, Mode: input.Mode, Hash: input.Hash, ExpectedSHA256: input.ExpectedSHA256, TimeoutMS: timeout.Milliseconds()})
 	if err := ctx.Err(); err != nil {
 		result = contextFailure(input, err, timeout)
 	}
@@ -304,12 +336,21 @@ func (s *Server) toolDefinition() map[string]any {
 	return map[string]any{
 		"name":         "file_inspect",
 		"title":        "Inspect file",
-		"description":  "Inspect any local file to identify its real format, typed structural properties, routing traits, conflicts, integrity, and probe evidence. Use one call before choosing a file-specific tool. The path must be relative to the granted workspace; inspection is read-only and archives are never extracted.",
+		"description":  "Inspect one relative file to identify its real format, typed structural properties, routing traits, action blockers, integrity, and bounded probe evidence. Optionally verify an expected SHA-256. Use this instead of batch or inventory when one exact path is in scope. Inspection is read-only and archives are never extracted.",
 		"inputSchema":  s.inputSchema,
 		"outputSchema": s.outputSchema,
 		"annotations": map[string]any{
 			"title": "Inspect file", "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false,
 		},
+	}
+}
+
+func (s *Server) acquireCallSlot(ctx context.Context) bool {
+	select {
+	case s.callSlots <- struct{}{}:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -341,6 +382,13 @@ func decodeToolInput(raw json.RawMessage) (toolInput, error) {
 	}
 	if input.Hash != inspector.HashNone && input.Hash != inspector.HashSHA256 {
 		return input, errors.New("hash must be none or sha256")
+	}
+	if input.ExpectedSHA256 != "" {
+		if normalized, err := inspector.NormalizeExpectedSHA256(input.ExpectedSHA256); err != nil {
+			return input, errors.New("expected_sha256 must contain exactly 64 hexadecimal characters")
+		} else {
+			input.ExpectedSHA256 = normalized
+		}
 	}
 	return input, nil
 }

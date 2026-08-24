@@ -120,3 +120,39 @@ func TestIdentityConflictsStayInsideSchemaBudget(t *testing.T) {
 		t.Fatalf("result left the published schema: %v", err)
 	}
 }
+
+func TestPDFTextLayerRoutingIsExplicitAndBounded(t *testing.T) {
+	probeDir := t.TempDir()
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(probeDir, name), []byte("#!/bin/sh\n"+body+"\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("file", "printf 'application/pdf\\n'")
+	write("pdfinfo", "printf 'Pages: 7\\nEncrypted: no\\nPDF version: 1.7\\n'")
+	write("pdftotext", "printf 'bounded text\\n'")
+	t.Setenv("PATH", probeDir)
+	present := inspectBytes(t, "routed.pdf", []byte("%PDF-1.7\n"), ModeStandard)
+	if present.PDF == nil || present.PDF.TextLayer != "present" || present.PDF.TextPagesSampled != MaxPDFTextProbePages || present.PDF.TextLayerComplete {
+		t.Fatalf("bounded PDF text routing: %#v", present.PDF)
+	}
+	if !containsString(present.Traits, "text_extractable") {
+		t.Fatalf("present text layer did not produce routing trait: %#v", present.Traits)
+	}
+
+	write("pdfinfo", "printf 'Pages: 3\\nEncrypted: no\\nPDF version: 1.7\\n'")
+	write("pdftotext", ":")
+	absent := inspectBytes(t, "scan.pdf", []byte("%PDF-1.7\n"), ModeStandard)
+	if absent.PDF == nil || absent.PDF.TextLayer != "absent" || absent.PDF.TextPagesSampled != 3 || !absent.PDF.TextLayerComplete || containsString(absent.Traits, "text_extractable") {
+		t.Fatalf("complete empty PDF sample was not explicit: %#v traits=%#v", absent.PDF, absent.Traits)
+	}
+
+	if err := os.Remove(filepath.Join(probeDir, "pdftotext")); err != nil {
+		t.Fatal(err)
+	}
+	unknown := inspectBytes(t, "unknown.pdf", []byte("%PDF-1.7\n"), ModeStandard)
+	if unknown.PDF == nil || unknown.PDF.TextLayer != "unknown" || unknown.Status != "partial" || !hasDiagnostic(unknown, "PDF_TEXT_LAYER_PROBE_UNAVAILABLE") {
+		t.Fatalf("unavailable PDF text routing was overclaimed: %#v", unknown)
+	}
+}

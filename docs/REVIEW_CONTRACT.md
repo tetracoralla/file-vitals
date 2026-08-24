@@ -21,8 +21,9 @@ sequences against the built binary.
    complete response envelope remain bounded by one call budget.
 8. Cancellation kills the worker and any active probe; a later request still
    succeeds.
-9. `tools/list` exposes only `file_inspect`, with strict schemas and accurate
-   read-only, non-destructive, idempotent, closed-world annotations.
+9. `tools/list` exposes exactly `file_inspect`, `file_inspect_batch`, and
+   `workspace_inventory`, each with strict schemas and accurate read-only,
+   non-destructive, idempotent, closed-world annotations.
 10. The installed plugin's manifest, Skill, MCP command, binary version, and
     live public tool agree.
 11. MCP 2026-07-28 `server/discover`, stateless list/call, required request
@@ -45,3 +46,15 @@ sequences against the built binary.
 17. Cancelling or replacing a macOS app inspection terminates the running
     engine process, a pending task never re-reads the newer selection, and
     release app builds resolve only the bundled engine.
+18. Expected SHA-256 returns an explicit match predicate; a mismatch is a typed
+    constraint, and invalid digests never start the worker.
+19. Batch preserves index/path correlation and per-item authority errors, uses
+    one worker and one cumulative deadline/hash/response budget, and survives a
+    limit breach with a schema-valid result.
+20. Workspace inventory rejects authority escapes and symlink roots, skips
+    symlink/special entries, is deterministic, and reports depth/file/directory
+    truncation without implying a complete workspace.
+21. Archive path/link/device blockers, exact Git LFS indirection, modern binary
+    data signatures, OOXML macro/external/embedded facts, SVG active/external
+    facts, and PDF text-layer present/absent/unknown states each have negative
+    regressions and remain within the published schema.

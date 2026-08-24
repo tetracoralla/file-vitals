@@ -337,6 +337,43 @@ func inspectSVG(data []byte) (*ImageInfo, error) {
 	}
 }
 
+func inspectSVGStructure(data []byte) (*SVGInfo, error) {
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	info := &SVGInfo{}
+	tokens := 0
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			info.InspectionComplete = true
+			return info, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		tokens++
+		if tokens > 100_000 {
+			return info, errStructuredLimit
+		}
+		start, ok := token.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if strings.EqualFold(start.Name.Local, "script") {
+			info.ScriptCount++
+		}
+		for _, attribute := range start.Attr {
+			if !strings.EqualFold(attribute.Name.Local, "href") {
+				continue
+			}
+			value := strings.TrimSpace(attribute.Value)
+			lower := strings.ToLower(value)
+			if value != "" && !strings.HasPrefix(value, "#") && !strings.HasPrefix(lower, "data:") {
+				info.ExternalHrefCount++
+			}
+		}
+	}
+}
+
 func parseSVGNumber(value string) (float64, error) {
 	value = strings.TrimSpace(value)
 	end := 0

@@ -66,7 +66,7 @@ func baseResult(source Source, options Options) Result {
 		name = filepath.Base(source.Name)
 	}
 	return Result{
-		SchemaVersion: "1.0",
+		SchemaVersion: "1.1",
 		Status:        "unsupported",
 		File: FileInfo{
 			Name:        bounded(name, 256),
@@ -83,6 +83,7 @@ func baseResult(source Source, options Options) Result {
 			Conflicts:  []string{},
 		},
 		Traits:      []string{},
+		Constraints: []string{},
 		Integrity:   Integrity{Readable: true},
 		Diagnostics: []Diagnostic{},
 		Provenance:  []Provenance{},
@@ -152,7 +153,7 @@ func fitResponse(result *Result) error {
 	if err != nil {
 		return err
 	}
-	if len(encoded) <= MaxResponseBytes {
+	if len(encoded)+1 <= MaxResponseBytes {
 		return nil
 	}
 	if result.Archive != nil && len(result.Archive.Entries) > 0 {
@@ -161,7 +162,7 @@ func fitResponse(result *Result) error {
 		result.Limits.Truncated = true
 		addDiagnostic(result, "RESPONSE_TRUNCATED", "warning", "Archive entry names were removed to fit the response budget.")
 		encoded, err = json.Marshal(result)
-		if err == nil && len(encoded) <= MaxResponseBytes {
+		if err == nil && len(encoded)+1 <= MaxResponseBytes {
 			return nil
 		}
 	}
@@ -194,6 +195,12 @@ var knownExtensionMediaTypes = map[string]string{
 	".md": "text/markdown", ".svg": "image/svg+xml",
 	".woff": "font/woff", ".woff2": "font/woff2", ".otf": "font/otf", ".ttf": "font/ttf",
 	".mkv": "video/x-matroska", ".webm": "video/webm", ".mov": "video/quicktime",
+	".parquet": "application/vnd.apache.parquet", ".arrow": "application/vnd.apache.arrow.file", ".feather": "application/vnd.apache.arrow.file",
+	".orc": "application/vnd.apache.orc", ".avro": "application/avro", ".npy": "application/x-npy",
+	".h5": "application/x-hdf5", ".hdf5": "application/x-hdf5", ".wasm": "application/wasm",
+	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docm": "application/vnd.ms-word.document.macroEnabled.12",
+	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsm": "application/vnd.ms-excel.sheet.macroEnabled.12",
+	".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation", ".pptm": "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
 }
 
 func extensionMediaType(extension string) string {
@@ -238,5 +245,8 @@ func mediaCompatible(detected, extension string) bool {
 func isOOXMLMediaType(mediaType string) bool {
 	return mediaType == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
 		mediaType == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-		mediaType == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+		mediaType == "application/vnd.openxmlformats-officedocument.presentationml.presentation" ||
+		mediaType == "application/vnd.ms-word.document.macroEnabled.12" ||
+		mediaType == "application/vnd.ms-excel.sheet.macroEnabled.12" ||
+		mediaType == "application/vnd.ms-powerpoint.presentation.macroEnabled.12"
 }

@@ -14,6 +14,14 @@ func runWorker(stdout io.Writer) int {
 	return worker.Run(stdout)
 }
 
+func runBatchWorker(stdout io.Writer) int {
+	return worker.RunBatch(stdout)
+}
+
+func runInventoryWorker(stdout io.Writer) int {
+	return worker.RunInventory(stdout)
+}
+
 func runMCP(stderr io.Writer) int {
 	executable, err := os.Executable()
 	if err != nil {
