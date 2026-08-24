@@ -1,0 +1,4 @@
+interface:
+  display_name: "File Vitals"
+  short_description: "Identify and characterize any local file"
+  default_prompt: "Use $file-vitals to inspect this file before choosing the next tool."

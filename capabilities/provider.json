@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "openadam.provider-manifest.v0.2",
+  "provider": {
+    "id": "io.github.tetracoralla.file-vitals",
+    "name": "File Vitals",
+    "version": "0.1.0",
+    "homepage": "https://github.com/tetracoralla/file-vitals"
+  },
+  "implementations": [
+    {
+      "capabilityId": "org.openadam.file.inspect",
+      "capabilityVersion": "0.1.0",
+      "adapter": {
+        "protocol": "openadam.capability-jsonl.v0.1",
+        "command": "go",
+        "args": ["run", "./cmd/capability-adapter"]
+      },
+      "adapterBindings": [
+        {
+          "operationId": "inspect",
+          "target": "cmd/capability-adapter#inspect"
+        }
+      ],
+      "transportSchemaProbe": {
+        "protocol": "openadam.transport-schema-jsonl.v0.1",
+        "command": "go",
+        "args": ["run", "./cmd/transport-schema-probe"]
+      },
+      "bindings": [
+        {
+          "operationId": "inspect",
+          "transport": "mcp-tool",
+          "target": "file_inspect",
+          "contractSchemaDigests": {
+            "input": "sha256:d97332911b5468a6d4f0d77c19b25ccab2fc3d95ff4d0477f5cbf964adf7a155",
+            "output": "sha256:97a6d3439d3a1ad0f79bf22bb96c58088cf6618290e26a43381b5a420897ebe1"
+          },
+          "transportSchemaDigests": {
+            "input": "sha256:6ba9d13ca78064bdced0dc1cc22698de035b679851cddacd740889ea16671be3",
+            "output": "sha256:a97fbf16ac08ca757924942978b03117061f8ddad4f31e6329009dfabcf55863"
+          },
+          "annotations": {
+            "readOnlyHint": true,
+            "destructiveHint": false,
+            "idempotentHint": true,
+            "openWorldHint": false
+          }
+        }
+      ]
+    }
+  ]
+}

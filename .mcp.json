@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "file-vitals": {
+      "command": "go",
+      "args": ["run", "./cmd/finspect", "mcp"],
+      "cwd": ".",
+      "env_vars": ["UFI_WORKSPACE_ROOT"]
+    }
+  }
+}

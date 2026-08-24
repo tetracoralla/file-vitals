@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:openadam:capability:file.inspect:v0.1:input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["path"],
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Relative path to one regular file inside the explicit workspace grant."
+    },
+    "mode": { "enum": ["quick", "standard", "deep"], "default": "standard" },
+    "hash": { "enum": ["none", "sha256"], "default": "none" }
+  }
+}

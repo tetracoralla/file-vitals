@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://file-vitals.local/schema/file-inspect-input-1.0.json",
+  "title": "file_inspect input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["path"],
+  "properties": {
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "description": "Relative path to one regular file inside the granted workspace. Absolute paths, parent traversal, URIs, and symlinks are rejected."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["quick", "standard", "deep"],
+      "default": "standard",
+      "description": "quick identifies; standard adds the applicable family probe; deep adds bounded archive entry names and expensive metadata."
+    },
+    "hash": {
+      "type": "string",
+      "enum": ["none", "sha256"],
+      "default": "none",
+      "description": "Optional content digest. SHA-256 is refused above the fixed input budget."
+    }
+  }
+}

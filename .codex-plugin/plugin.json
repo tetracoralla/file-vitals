@@ -1,0 +1,24 @@
+{
+  "name": "file-vitals",
+  "version": "0.1.0",
+  "description": "Read-only deterministic file identification and characterization for Agents",
+  "author": {
+    "name": "openAdam"
+  },
+  "license": "Apache-2.0",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "File Vitals",
+    "shortDescription": "Know what a file is before acting on it.",
+    "longDescription": "Identify a file from bytes, report typed structural properties and uncertainty, and expose safe routing traits through one bounded read-only tool.",
+    "developerName": "openAdam",
+    "category": "Productivity",
+    "capabilities": ["Identify", "Inspect", "Characterize"],
+    "defaultPrompt": [
+      "Inspect this file and tell me what it really is.",
+      "Check whether this file's extension matches its contents.",
+      "Inspect this asset before choosing the next tool."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}
