@@ -32,7 +32,10 @@ the bundled CLI engine; it must not reimplement inspection semantics in Swift.
   apply to the complete call. A timeout or limit breach terminates the worker.
 - A batch or inventory is one call and one worker, not an adapter loop. Batch
   preserves input order and per-item failures. Inventory scans at most 32 files,
-  8 levels, and 256 directories without following links.
+  8 levels, 256 directories, and 4,096 directory entries without following
+  links.
+- MCP and Capability adapters bound executing plus queued requests; a producer
+  cannot create an unbounded goroutine wait queue behind the worker semaphore.
 - Signature evidence outranks the filename extension. Inference and conflicts
   remain explicit; unknown is a valid result.
 - Every guard or parser correction requires a negative regression test.

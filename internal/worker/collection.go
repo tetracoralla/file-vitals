@@ -56,7 +56,7 @@ func RunBatch(stdout io.Writer) int {
 func RunInventory(stdout io.Writer) int {
 	debug.SetMemoryLimit(inspector.GoMemoryLimitBytes)
 	var request supervisor.InventoryRequest
-	if !decodeWorkerRequest(inspector.MaxCollectionRequestBytes, &request) || len(request.Items) > inspector.MaxInventoryFiles || request.MaxDepth < 0 || request.MaxDepth > inspector.MaxInventoryDepth {
+	if !decodeWorkerRequest(inspector.MaxCollectionRequestBytes, &request) || len(request.Items) > inspector.MaxInventoryFiles || request.MaxDepth < 0 || request.MaxDepth > inspector.MaxInventoryDepth || request.EntriesScanned < 0 || request.EntriesScanned > inspector.MaxInventoryEntries || request.DirectoriesScanned < 0 || request.DirectoriesScanned > inspector.MaxInventoryDirs {
 		return 70
 	}
 	request.TimeoutMS = normalizedTimeout(request.TimeoutMS)
@@ -105,7 +105,7 @@ func inspectInventoryWithRecover(ctx context.Context, sources []inspector.Invent
 			result = inspector.PublicInventoryError(request.Root, request.MaxDepth, request.TimeoutMS, "E_INTERNAL", "The inventory worker encountered an internal failure.")
 		}
 	}()
-	collection := inspector.InventoryCollection{DirectoriesScanned: request.DirectoriesScanned, SymlinksSkipped: request.SymlinksSkipped, SpecialSkipped: request.SpecialSkipped, Truncated: request.Truncated}
+	collection := inspector.InventoryCollection{EntriesScanned: request.EntriesScanned, DirectoriesScanned: request.DirectoriesScanned, SymlinksSkipped: request.SymlinksSkipped, SpecialSkipped: request.SpecialSkipped, Truncated: request.Truncated}
 	return inspector.New().InspectInventory(ctx, request.Root, sources, collection, request.MaxDepth, time.Duration(request.TimeoutMS)*time.Millisecond)
 }
 

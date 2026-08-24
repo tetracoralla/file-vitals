@@ -1,15 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://file-vitals.local/schema/workspace-inventory-result-1.0.json",
+  "$id": "https://file-vitals.local/schema/workspace-inventory-result-1.1.json",
   "title": "File Vitals workspace inventory result",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "status", "root", "files_scanned", "directories_scanned", "symlinks_skipped", "special_entries_skipped", "total_size_bytes", "formats", "items", "diagnostics", "limits"],
+  "required": ["schema_version", "status", "root", "files_scanned", "entries_scanned", "directories_scanned", "symlinks_skipped", "special_entries_skipped", "total_size_bytes", "formats", "items", "diagnostics", "limits"],
   "properties": {
-    "schema_version": {"const": "1.0"},
+    "schema_version": {"const": "1.1"},
     "status": {"enum": ["ok", "partial", "error"]},
     "root": {"type": "string", "maxLength": 4096},
     "files_scanned": {"type": "integer", "minimum": 0, "maximum": 32},
+    "entries_scanned": {"type": "integer", "minimum": 0, "maximum": 4096},
     "directories_scanned": {"type": "integer", "minimum": 0, "maximum": 256},
     "symlinks_skipped": {"type": "integer", "minimum": 0},
     "special_entries_skipped": {"type": "integer", "minimum": 0},
@@ -63,10 +64,12 @@
     },
     "limits": {
       "type": "object", "additionalProperties": false,
-      "required": ["max_depth", "max_files", "response_bytes_max", "timeout_ms", "memory_bytes_max"],
+      "required": ["max_depth", "max_files", "max_directories", "max_entries", "response_bytes_max", "timeout_ms", "memory_bytes_max"],
       "properties": {
         "max_depth": {"type": "integer", "minimum": 0, "maximum": 8},
         "max_files": {"const": 32},
+        "max_directories": {"const": 256},
+        "max_entries": {"const": 4096},
         "response_bytes_max": {"const": 196608},
         "timeout_ms": {"type": "integer", "minimum": 1},
         "memory_bytes_max": {"type": "integer", "minimum": 1},

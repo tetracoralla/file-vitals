@@ -170,6 +170,7 @@ type InventorySource struct {
 }
 
 type InventoryCollection struct {
+	EntriesScanned     int
 	DirectoriesScanned int
 	SymlinksSkipped    int
 	SpecialSkipped     int
@@ -206,6 +207,8 @@ type InventoryFormat struct {
 type InventoryLimits struct {
 	MaxDepth         int   `json:"max_depth"`
 	MaxFiles         int   `json:"max_files"`
+	MaxDirectories   int   `json:"max_directories"`
+	MaxEntries       int   `json:"max_entries"`
 	ResponseBytesMax int   `json:"response_bytes_max"`
 	TimeoutMS        int64 `json:"timeout_ms"`
 	MemoryBytesMax   int64 `json:"memory_bytes_max"`
@@ -217,6 +220,7 @@ type InventoryResult struct {
 	Status             string            `json:"status"`
 	Root               string            `json:"root"`
 	FilesScanned       int               `json:"files_scanned"`
+	EntriesScanned     int               `json:"entries_scanned"`
 	DirectoriesScanned int               `json:"directories_scanned"`
 	SymlinksSkipped    int               `json:"symlinks_skipped"`
 	SpecialSkipped     int               `json:"special_entries_skipped"`
@@ -232,14 +236,14 @@ func (i *Inspector) InspectInventory(ctx context.Context, root string, sources [
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
-	if maxDepth < 0 || maxDepth > MaxInventoryDepth || len(sources) > MaxInventoryFiles || collection.DirectoriesScanned < 0 || collection.DirectoriesScanned > MaxInventoryDirs {
+	if maxDepth < 0 || maxDepth > MaxInventoryDepth || len(sources) > MaxInventoryFiles || collection.EntriesScanned < 0 || collection.EntriesScanned > MaxInventoryEntries || collection.DirectoriesScanned < 0 || collection.DirectoriesScanned > MaxInventoryDirs {
 		return PublicInventoryError(root, maxDepth, timeout.Milliseconds(), "E_INVALID_INPUT", "Inventory limits exceed the published bounds.")
 	}
 	result := InventoryResult{
-		SchemaVersion: "1.0", Status: "ok", Root: bounded(root, 4096),
-		DirectoriesScanned: collection.DirectoriesScanned, SymlinksSkipped: collection.SymlinksSkipped,
+		SchemaVersion: "1.1", Status: "ok", Root: bounded(root, 4096),
+		EntriesScanned: collection.EntriesScanned, DirectoriesScanned: collection.DirectoriesScanned, SymlinksSkipped: collection.SymlinksSkipped,
 		SpecialSkipped: collection.SpecialSkipped, Formats: []InventoryFormat{}, Items: []InventoryItem{}, Diagnostics: []Diagnostic{},
-		Limits: InventoryLimits{MaxDepth: maxDepth, MaxFiles: MaxInventoryFiles, ResponseBytesMax: MaxCollectionBytes, TimeoutMS: timeout.Milliseconds(), MemoryBytesMax: MaxMemoryBytes, Truncated: collection.Truncated},
+		Limits: InventoryLimits{MaxDepth: maxDepth, MaxFiles: MaxInventoryFiles, MaxDirectories: MaxInventoryDirs, MaxEntries: MaxInventoryEntries, ResponseBytesMax: MaxCollectionBytes, TimeoutMS: timeout.Milliseconds(), MemoryBytesMax: MaxMemoryBytes, Truncated: collection.Truncated},
 	}
 	formats := map[string]*InventoryFormat{}
 	for _, input := range sources {
@@ -297,7 +301,7 @@ func (i *Inspector) InspectInventory(ctx context.Context, root string, sources [
 	})
 	if collection.Truncated {
 		result.Status = "partial"
-		result.Diagnostics = append(result.Diagnostics, Diagnostic{Code: "INVENTORY_LIMIT", Severity: "warning", Message: "Workspace inventory stopped at a declared limit or skipped entries that changed or could not be opened during the scan."})
+		result.Diagnostics = append(result.Diagnostics, Diagnostic{Code: "INVENTORY_LIMIT", Severity: "warning", Message: "Workspace inventory stopped at a declared file, directory, depth, or entry limit, or skipped entries that changed or could not be opened during the scan."})
 	}
 	fitInventoryResponse(&result)
 	if err := schemas.ValidateInventoryResult(result); err != nil {
@@ -317,8 +321,8 @@ func PublicInventoryError(root string, maxDepth int, timeoutMS int64, code, mess
 		maxDepth = MaxInventoryDepth
 	}
 	return InventoryResult{
-		SchemaVersion: "1.0", Status: "error", Root: bounded(root, 4096), Formats: []InventoryFormat{}, Items: []InventoryItem{}, Diagnostics: []Diagnostic{},
-		Limits: InventoryLimits{MaxDepth: maxDepth, MaxFiles: MaxInventoryFiles, ResponseBytesMax: MaxCollectionBytes, TimeoutMS: timeoutMS, MemoryBytesMax: MaxMemoryBytes},
+		SchemaVersion: "1.1", Status: "error", Root: bounded(root, 4096), Formats: []InventoryFormat{}, Items: []InventoryItem{}, Diagnostics: []Diagnostic{},
+		Limits: InventoryLimits{MaxDepth: maxDepth, MaxFiles: MaxInventoryFiles, MaxDirectories: MaxInventoryDirs, MaxEntries: MaxInventoryEntries, ResponseBytesMax: MaxCollectionBytes, TimeoutMS: timeoutMS, MemoryBytesMax: MaxMemoryBytes},
 		Error:  &ErrorInfo{Code: bounded(code, 64), Message: bounded(message, 512)},
 	}
 }

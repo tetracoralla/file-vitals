@@ -29,6 +29,9 @@ const (
 	// Bounded concurrency mirrors the MCP server's admission policy so one
 	// slow storage-backed inspection cannot block every later request.
 	maxConcurrentInspections = 4
+	// This bounds executing plus queued requests. A worker semaphore alone does
+	// not bound the number of goroutines created by a fast JSONL producer.
+	maxAdmittedInspections = 16
 )
 
 var runInspection = supervisor.Run
@@ -110,6 +113,7 @@ func serve(input io.Reader, output io.Writer) error {
 	var writeMu sync.Mutex
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, maxConcurrentInspections)
+	admission := make(chan struct{}, maxAdmittedInspections)
 	eof := false
 	for !eof {
 		line, err := linereader.ReadRequestLine(reader, maxRequestLineBytes)
@@ -131,9 +135,25 @@ func serve(input io.Reader, output io.Writer) error {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
+		select {
+		case admission <- struct{}{}:
+		default:
+			var identity struct {
+				ID string `json:"id"`
+			}
+			_ = json.Unmarshal(line, &identity)
+			if len(identity.ID) > 128 {
+				identity.ID = ""
+			}
+			writeResponse(&writeMu, encoder, failure(identity.ID, "LIMIT_EXCEEDED", "Provider request capacity is full."))
+			continue
+		}
 		wg.Add(1)
 		go func(line []byte) {
-			defer wg.Done()
+			defer func() {
+				<-admission
+				wg.Done()
+			}()
 			// Responses complete in request-completion order, not arrival
 			// order; clients correlate by the required envelope id.
 			writeResponse(&writeMu, encoder, handleRequest(slots, line))

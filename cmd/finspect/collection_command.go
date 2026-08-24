@@ -74,10 +74,11 @@ func parseBatchArgs(args []string) (batchArgs, error) {
 	}
 	seen := map[string]struct{}{}
 	for _, path := range parsed.paths {
-		if _, exists := seen[path]; exists {
+		key := filepath.Clean(path)
+		if _, exists := seen[key]; exists {
 			return parsed, errors.New("batch file paths must be unique")
 		}
-		seen[path] = struct{}{}
+		seen[key] = struct{}{}
 	}
 	if parsed.mode != inspector.ModeQuick && parsed.mode != inspector.ModeStandard && parsed.mode != inspector.ModeDeep {
 		return parsed, errors.New("mode must be quick, standard, or deep")
@@ -230,7 +231,7 @@ func runInventoryContext(parent context.Context, args []string, stdout, stderr i
 	if err != nil {
 		return emitInventoryResult(parsed, inspector.PublicInventoryError(parsed.path, parsed.maxDepth, parsed.timeout.Milliseconds(), "E_FILE_ACCESS", "The inventory directory could not be resolved."), stdout)
 	}
-	collection, err := authority.CollectRegularFilesContext(ctx, absolute, ".", parsed.maxDepth, inspector.MaxInventoryFiles, inspector.MaxInventoryDirs)
+	collection, err := authority.CollectRegularFilesContext(ctx, absolute, ".", parsed.maxDepth, inspector.MaxInventoryFiles, inspector.MaxInventoryDirs, inspector.MaxInventoryEntries)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return emitInventoryResult(parsed, cliInventoryContextFailure(parsed, err), stdout)
@@ -250,7 +251,7 @@ func runInventoryContext(parent context.Context, args []string, stdout, stderr i
 		return emitInventoryResult(parsed, inspector.PublicInventoryError(parsed.path, parsed.maxDepth, parsed.timeout.Milliseconds(), "E_INTERNAL", "Unable to locate the running executable."), stdout)
 	}
 	result := supervisor.RunInventory(ctx, executable, files, supervisor.InventoryRequest{
-		Root: parsed.path, Items: items, DirectoriesScanned: collection.DirectoriesScanned,
+		Root: parsed.path, Items: items, EntriesScanned: collection.EntriesScanned, DirectoriesScanned: collection.DirectoriesScanned,
 		SymlinksSkipped: collection.SymlinksSkipped, SpecialSkipped: collection.SpecialSkipped,
 		Truncated: collection.Truncated, MaxDepth: parsed.maxDepth, TimeoutMS: parsed.timeout.Milliseconds(),
 	})

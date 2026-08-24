@@ -51,10 +51,10 @@ func TestBatchResponseFittingPreservesCorrelationWithExplicitTruncation(t *testi
 
 func TestInventoryResponseFittingKeepsScannedPrefixAggregates(t *testing.T) {
 	result := InventoryResult{
-		SchemaVersion: "1.0", Status: "ok", Root: ".", FilesScanned: MaxInventoryFiles, DirectoriesScanned: 1,
+		SchemaVersion: "1.1", Status: "ok", Root: ".", FilesScanned: MaxInventoryFiles, EntriesScanned: MaxInventoryFiles, DirectoriesScanned: 1,
 		Formats: []InventoryFormat{{Kind: "text", MediaType: "text/plain", Format: "Plain text", FileCount: MaxInventoryFiles, TotalSizeBytes: MaxInventoryFiles}},
 		Items:   []InventoryItem{}, Diagnostics: []Diagnostic{},
-		Limits: InventoryLimits{MaxDepth: 4, MaxFiles: MaxInventoryFiles, ResponseBytesMax: MaxCollectionBytes, TimeoutMS: 5000, MemoryBytesMax: MaxMemoryBytes},
+		Limits: InventoryLimits{MaxDepth: 4, MaxFiles: MaxInventoryFiles, MaxDirectories: MaxInventoryDirs, MaxEntries: MaxInventoryEntries, ResponseBytesMax: MaxCollectionBytes, TimeoutMS: 5000, MemoryBytesMax: MaxMemoryBytes},
 	}
 	for index := 0; index < MaxInventoryFiles; index++ {
 		codes := make([]string, 64)

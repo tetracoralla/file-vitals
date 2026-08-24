@@ -42,7 +42,14 @@ func TestOpenRelativeRejectsEscapeForms(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "ok.txt"), []byte("ok"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	cases := map[string]string{"absolute": filepath.Join(root, "ok.txt"), "parent": "../ok.txt", "uri": "file:///etc/passwd", "directory": "."}
+	cases := map[string]string{
+		"absolute":  filepath.Join(root, "ok.txt"),
+		"parent":    "../ok.txt",
+		"file URI":  "file:///etc/passwd",
+		"data URI":  "data:text/plain,secret",
+		"URN":       "urn:example:file",
+		"directory": ".",
+	}
 	for name, value := range cases {
 		t.Run(name, func(t *testing.T) {
 			if file, err := OpenRelative(root, value); err == nil {

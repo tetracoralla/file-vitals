@@ -148,7 +148,7 @@ func printHumanBatch(output io.Writer, result inspector.BatchResult) {
 }
 
 func printHumanInventory(output io.Writer, result inspector.InventoryResult) {
-	fmt.Fprintf(output, "%s · %d files · %d directories · %s\n", result.Status, result.FilesScanned, result.DirectoriesScanned, formatBytes(result.TotalSizeBytes))
+	fmt.Fprintf(output, "%s · %d files · %d entries · %d directories · %s\n", result.Status, result.FilesScanned, result.EntriesScanned, result.DirectoriesScanned, formatBytes(result.TotalSizeBytes))
 	for _, format := range result.Formats {
 		fmt.Fprintf(output, "%s · %d files · %s\n", format.Format, format.FileCount, formatBytes(format.TotalSizeBytes))
 	}

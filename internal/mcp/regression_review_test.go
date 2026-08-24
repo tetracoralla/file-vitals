@@ -1,12 +1,16 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tetracoralla/file-vitals/internal/inspector"
 	"github.com/tetracoralla/file-vitals/internal/supervisor"
@@ -122,6 +126,48 @@ func TestDuplicateRequestIDKeepsLaterCallCancellable(t *testing.T) {
 	}
 	if cancelled != 2 {
 		t.Fatalf("cancellation did not reach every duplicate-ID call: cancelled=%d responses=%d", cancelled, len(responses))
+	}
+}
+
+func TestToolCallAdmissionIsBoundedAndCapacityRecovers(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "ok.txt"), []byte("hello\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	server := newTestServer(t, root)
+	defaultRunner := server.runWorker
+	server.callTimeout = 60 * time.Millisecond
+	server.runWorker = func(ctx context.Context, _ string, _ *os.File, request supervisor.Request) inspector.Result {
+		<-ctx.Done()
+		return inspector.PublicError(request.Name, request.Mode, request.TimeoutMS, "E_TIMEOUT", "intentional admission fixture")
+	}
+	lines := []string{initializeLine()}
+	for index := 0; index < maxAdmittedCalls+8; index++ {
+		lines = append(lines, fmt.Sprintf(`{"jsonrpc":"2.0","id":%d,"method":"tools/call","params":{"name":"file_inspect","arguments":{"path":"ok.txt","mode":"quick"}}}`, 100+index))
+	}
+	var output bytes.Buffer
+	if err := server.Serve(context.Background(), strings.NewReader(strings.Join(lines, "\n")+"\n"), &output); err != nil {
+		t.Fatal(err)
+	}
+	responses := decodeResponses(t, output.Bytes())
+	overloaded := 0
+	for _, response := range responses {
+		if rpc, ok := response["error"].(map[string]any); ok && rpc["code"] == float64(-32003) {
+			overloaded++
+		}
+	}
+	if overloaded == 0 {
+		t.Fatalf("request flood created an unbounded wait queue: responses=%d", len(responses))
+	}
+	if len(server.admissionSlots) != 0 {
+		t.Fatalf("admission capacity leaked after failure storm: %d", len(server.admissionSlots))
+	}
+
+	server.runWorker = defaultRunner
+	recovered := serveLines(t, server, `{"jsonrpc":"2.0","id":999,"method":"tools/call","params":{"name":"file_inspect","arguments":{"path":"ok.txt","mode":"quick"}}}`)
+	if len(recovered) != 1 || recovered[0]["result"] == nil {
+		encoded, _ := json.Marshal(recovered)
+		t.Fatalf("server did not recover after overload: %s", encoded)
 	}
 }
 

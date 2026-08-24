@@ -41,8 +41,9 @@ sequences against the built binary.
     presents errors without stale results, and copies both summary and JSON.
 16. The Capability adapter survives an oversized request line with one error
     response and serves the next request; concurrency is bounded with queue
-    admission sharing each call's deadline, responses correlate by envelope
-    id, and a deep archive inspection projects its bounded entry facts.
+    admission sharing each call's deadline, executing plus queued requests have
+    a fixed admission cap, responses correlate by envelope id, and a deep
+    archive inspection projects its bounded entry facts.
 17. Cancelling or replacing a macOS app inspection terminates the running
     engine process, a pending task never re-reads the newer selection, and
     release app builds resolve only the bundled engine.
@@ -52,8 +53,9 @@ sequences against the built binary.
     one worker and one cumulative deadline/hash/response budget, and survives a
     limit breach with a schema-valid result.
 20. Workspace inventory rejects authority escapes and symlink roots, skips
-    symlink/special entries, is deterministic, and reports depth/file/directory
-    truncation without implying a complete workspace.
+    symlink/special entries, is deterministic, bounds directory enumeration,
+    and reports depth/file/directory/entry truncation without implying a
+    complete workspace.
 21. Archive path/link/device blockers, exact Git LFS indirection, modern binary
     data signatures, OOXML macro/external/embedded facts, SVG active/external
     facts, and PDF text-layer present/absent/unknown states each have negative

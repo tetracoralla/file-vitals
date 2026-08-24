@@ -63,6 +63,15 @@ def main() -> int:
             receive(process, 1)
             send(process, {"jsonrpc":"2.0","method":"notifications/initialized"})
 
+            send(process, {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}})
+            catalog_response, catalog_bytes = receive(process, 2)
+            tools = catalog_response["result"]["tools"]
+            schema_bytes = [
+                len(json.dumps(tool["inputSchema"], separators=(",", ":")).encode())
+                + len(json.dumps(tool["outputSchema"], separators=(",", ":")).encode())
+                for tool in tools
+            ]
+
             single_results = []
             single_bytes = 0
             single_started = time.monotonic()
@@ -97,6 +106,10 @@ def main() -> int:
                 "single_elapsed_ms_observed": single_ms,
                 "batch_elapsed_ms_observed": batch_ms,
                 "semantic_equivalence": True,
+                "tool_catalog_count": len(tools),
+                "tool_catalog_response_bytes": catalog_bytes,
+                "tool_schema_bytes_total": sum(schema_bytes),
+                "largest_tool_schema_bytes": max(schema_bytes),
             }
             print(json.dumps(metrics, separators=(",", ":")))
         finally:

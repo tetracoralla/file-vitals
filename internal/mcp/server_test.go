@@ -54,7 +54,7 @@ func newTestServer(t *testing.T, root string) *Server {
 				sources = append(sources, inspector.InventorySource{Path: item.Name, Source: source})
 			}
 		}
-		collection := inspector.InventoryCollection{DirectoriesScanned: request.DirectoriesScanned, SymlinksSkipped: request.SymlinksSkipped, SpecialSkipped: request.SpecialSkipped, Truncated: request.Truncated}
+		collection := inspector.InventoryCollection{EntriesScanned: request.EntriesScanned, DirectoriesScanned: request.DirectoriesScanned, SymlinksSkipped: request.SymlinksSkipped, SpecialSkipped: request.SpecialSkipped, Truncated: request.Truncated}
 		return inspector.New().InspectInventory(ctx, request.Root, sources, collection, request.MaxDepth, 5*time.Second)
 	}
 	return server
@@ -336,6 +336,12 @@ func TestExpectedSHA256IsVerifiedInSingleTool(t *testing.T) {
 	integrity := structured["integrity"].(map[string]any)
 	if integrity["sha256_matches"] != true || integrity["expected_sha256"] != "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03" {
 		t.Fatalf("expected hash was not verified: %#v", integrity)
+	}
+}
+
+func TestBatchRejectsLexicallyEquivalentPaths(t *testing.T) {
+	if _, err := decodeBatchToolInput(json.RawMessage(`{"paths":["a","./a"]}`)); err == nil {
+		t.Fatal("lexically equivalent batch paths were accepted")
 	}
 }
 

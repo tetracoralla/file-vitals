@@ -29,6 +29,7 @@ const (
 	MaxInventoryFiles         = 32
 	MaxInventoryDepth         = 8
 	MaxInventoryDirs          = 256
+	MaxInventoryEntries       = 4096
 	MaxCollectionBytes        = 192 * 1024
 	MaxCollectionRequestBytes = 256 * 1024
 )

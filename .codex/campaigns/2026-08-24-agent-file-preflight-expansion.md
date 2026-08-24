@@ -74,8 +74,8 @@ Out of scope:
   campaign start and tracking `origin/main`.
 - Current public Agent operations: `file_inspect`, `file_inspect_batch`, and
   `workspace_inventory`, each with a strict embedded input/output schema.
-- Current single-file result schema: `1.1`; collection schemas: `1.0`;
-  current product/plugin version: `0.3.0`.
+- Current single-file result schema: `1.1`; batch schema: `1.0`; inventory
+  schema: `1.1`; current product/plugin version: `0.3.1`.
 - Existing single-file development and release checks are defined by
   `scripts/check_all.sh` and `docs/REVIEW_CONTRACT.md`.
 - Implemented semantics: expected SHA-256 predicate; exact Git LFS indirection
@@ -95,9 +95,9 @@ Out of scope:
   test` is environment-blocked because this Command Line Tools runtime has no
   XCTest module.
 - Installed route completed: local marketplace installation is enabled at
-  `0.3.0`; the installed MCP passed single/batch/inventory, authority guard,
+  `0.3.1`; the installed MCP passed single/batch/inventory, authority guard,
   cancellation, and recovery probes; the installed runtime SHA-256 matches the
-  final bundle (`4832c8ab2dabc844ec5cc809ab976c04eb3c5297b3aff362a21e46f9121391b3`).
+  final bundle (`602916e83c3bd70c3247d0356c5b6a5fdc7926fadab5847f2f214927ba56a2ce`).
 - Cold ordinary-language routing completed without shell/file reads: the Agent
   chose `file_inspect_batch` for three explicit files, `workspace_inventory`
   for an unknown set under `schemas`, and `file_inspect` for expected SHA-256,
@@ -131,11 +131,73 @@ Rerunnable ladder:
 
 ## Continuation state
 
-- Current segment: implementation and controller-owned validation complete.
-- Next executable action: owner business/experience acceptance, followed only
-  by separately authorized commit, publication, signing, or notarization.
+- Current segment: 0.3.1 independent re-review, repair, and controller-owned
+  validation complete.
+- Next executable action: no further correctness implementation is required in
+  this review. Owner business/experience acceptance and any commit,
+  publication, signing, or notarization remain separately authorized actions.
 - Blockers: Swift XCTest execution remains setup-blocked because the active
   Command Line Tools Swift runtime does not provide the `XCTest` module; the
-  production Swift build, packaged app checks, and exercised UI flow pass.
+  production Swift build and packaged app checks pass. Current UI exercise
+  passed selection, mode/hash changes, explicit reinspection, both copy
+  actions, visible error, and recovery. A current cross-application file-drop
+  run remains unproved because the Computer Use host rejected cross-window
+  dragging before delivery; the drop handler is present in current source.
 - Update cadence: after shared semantics, after carrier integration, before
   broad validation, and at closeout.
+
+## 0.3.1 independent re-review follow-up
+
+Stable review target was clean `main` at
+`c4a3563ed648e3d92c68030e876b74d00dbd76ea`. The review found and repaired six
+derivative defects instead of inheriting the earlier completion claim:
+
+- the installed 0.3.0 Skill pointed at current source while its cached runtime
+  binary was stale;
+- MCP and Capability readers admitted an unbounded goroutine wait queue behind
+  their four-worker semaphores;
+- workspace inventory used `ReadDir(-1)` in the carrier process, allowing an
+  Agent-selected directory to allocate for every name outside the isolated
+  worker memory monitor;
+- batch duplicate checks accepted lexically equivalent paths such as `a` and
+  `./a`;
+- the authority guard rejected only selected URI spellings and accepted other
+  RFC 3986 scheme forms such as `data:` and `urn:`;
+- the inventory result did not expose the new cumulative entry-enumeration
+  limit.
+
+The repaired state uses a fixed 16-call admitted-work cap with four executing
+calls in both adapters, a cumulative 4,096-entry inventory limit, inventory
+schema 1.1 with explicit entry/directory limits, normalized duplicate checks,
+generic URI-scheme rejection, and product/plugin version 0.3.1. Each guard has
+a negative regression.
+
+Latest rerunnable evidence:
+
+- targeted authority/inspector/MCP/supervisor/worker/CLI/Capability tests:
+  PASS;
+- `./scripts/check_all.sh`: PASS, including race, vet, vulnerability, schemas,
+  Capability, package, CLI/MCP cancellation and recovery, checksums, and macOS
+  release build/bundle checks;
+- installed 0.3.1 bundle/source/Skill/schema parity and
+  `scripts/probe_plugin.py` against the installed cache: PASS;
+- cold ordinary-language Agent task: selected one `file_inspect_batch` call for
+  three explicit paths and returned three ordered 0.3.1 results;
+- Agent economics: eight calls reduced to one (87.5%), response bytes reduced
+  from 7,808 to 7,146 (8.5%), with semantic equivalence; the three-tool catalog
+  was 30,445 bytes, including 28,698 schema bytes;
+- current packaged App selection, Deep, SHA-256, explicit reinspection, both
+  copy actions, missing-file error, and recovery: PASS.
+
+Current dirty state is the uncommitted 0.3.1 repair across authority,
+inventory/result contracts, MCP/Capability admission, tests, packaging,
+documentation, and economics measurement. External state changed only by
+updating the enabled local File Vitals plugin installation to 0.3.1. No commit,
+push, publication, signing, or notarization was performed.
+
+Optional next campaign, not part of this completed correctness review: first
+measure whether the observed 30,445-byte tool catalog materially harms routing
+or cold-start economics in real dogfood. Only then optimize self-contained
+schemas or carrier exposure without weakening strict output contracts. Do not
+expand into content extraction, dataset schema inference, image understanding,
+conversion, search, or execution.

@@ -3,6 +3,7 @@ package authority
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,6 +17,7 @@ type InventoryFile struct {
 
 type InventoryCollection struct {
 	Files              []InventoryFile
+	EntriesScanned     int
 	DirectoriesScanned int
 	SymlinksSkipped    int
 	SpecialSkipped     int
@@ -31,7 +33,7 @@ func (c *InventoryCollection) Close() {
 	c.Files = nil
 }
 
-func CollectRegularFilesContext(ctx context.Context, rootPath, requested string, maxDepth, maxFiles, maxDirectories int) (InventoryCollection, error) {
+func CollectRegularFilesContext(ctx context.Context, rootPath, requested string, maxDepth, maxFiles, maxDirectories, maxEntries int) (InventoryCollection, error) {
 	collection := InventoryCollection{Files: []InventoryFile{}}
 	if rootPath == "" {
 		return collection, &Error{Code: "E_WORKSPACE_REQUIRED", Message: "The MCP host must grant a workspace with UFI_WORKSPACE_ROOT."}
@@ -40,7 +42,7 @@ func CollectRegularFilesContext(ctx context.Context, rootPath, requested string,
 	if err != nil {
 		return collection, err
 	}
-	if maxDepth < 0 || maxFiles <= 0 || maxDirectories <= 0 {
+	if maxDepth < 0 || maxFiles <= 0 || maxDirectories <= 0 || maxEntries <= 0 {
 		return collection, &Error{Code: "E_INVALID_INPUT", Message: "Inventory limits must be positive and bounded."}
 	}
 	// os.OpenRoot wraps a not-directory failure in an internal error that
@@ -77,14 +79,26 @@ func CollectRegularFilesContext(ctx context.Context, rootPath, requested string,
 			collection.Truncated = true
 			break
 		}
+		remainingEntries := maxEntries - collection.EntriesScanned
+		if remainingEntries <= 0 {
+			collection.Truncated = true
+			break
+		}
 		current := queue[0]
 		queue = queue[1:]
-		entries, readErr := readDirectoryStable(root, current.path)
+		entries, entriesTruncated, readErr := readDirectoryStable(ctx, root, current.path, remainingEntries)
 		if readErr != nil {
 			collection.Close()
 			return collection, readErr
 		}
 		collection.DirectoriesScanned++
+		collection.EntriesScanned += len(entries)
+		if entriesTruncated {
+			collection.Truncated = true
+			// Process the bounded, sorted prefix from this directory, but do
+			// not descend further after the cumulative entry budget is spent.
+			queue = nil
+		}
 		for _, entry := range entries {
 			if err := ctx.Err(); err != nil {
 				collection.Close()
@@ -172,22 +186,46 @@ func validateDirectoryComponents(root *os.Root, clean string) error {
 	return nil
 }
 
-func readDirectoryStable(root *os.Root, relative string) ([]os.DirEntry, error) {
+func readDirectoryStable(ctx context.Context, root *os.Root, relative string, maxEntries int) ([]os.DirEntry, bool, error) {
 	before, err := root.Lstat(relative)
 	if err != nil || before.Mode()&os.ModeSymlink != 0 || !before.IsDir() {
-		return nil, &Error{Code: "E_PATH_CHANGED", Message: "An inventory directory changed during authority validation."}
+		return nil, false, &Error{Code: "E_PATH_CHANGED", Message: "An inventory directory changed during authority validation."}
 	}
 	directory, err := root.Open(relative)
 	if err != nil {
-		return nil, &Error{Code: "E_FILE_ACCESS", Message: "An inventory directory could not be opened."}
+		return nil, false, &Error{Code: "E_FILE_ACCESS", Message: "An inventory directory could not be opened."}
 	}
-	entries, readErr := directory.ReadDir(-1)
+	// Read at most one entry beyond the retained prefix. ReadDir(-1) would let
+	// an Agent-selected directory allocate for every name in the MCP host,
+	// outside the isolated worker's memory monitor.
+	entries := make([]os.DirEntry, 0, maxEntries+1)
+	var readErr error
+	for len(entries) <= maxEntries {
+		if err := ctx.Err(); err != nil {
+			_ = directory.Close()
+			return nil, false, err
+		}
+		remaining := maxEntries + 1 - len(entries)
+		var batch []os.DirEntry
+		batch, readErr = directory.ReadDir(remaining)
+		entries = append(entries, batch...)
+		if errors.Is(readErr, io.EOF) || readErr != nil || len(batch) == 0 {
+			break
+		}
+	}
+	entriesTruncated := len(entries) > maxEntries
+	if len(entries) > maxEntries {
+		entries = entries[:maxEntries]
+	}
 	opened, statErr := directory.Stat()
 	_ = directory.Close()
 	after, afterErr := root.Lstat(relative)
-	if readErr != nil || statErr != nil || afterErr != nil || after.Mode()&os.ModeSymlink != 0 || !os.SameFile(before, opened) || !os.SameFile(opened, after) {
-		return nil, &Error{Code: "E_PATH_CHANGED", Message: "An inventory directory changed during authority validation."}
+	if ctx.Err() != nil {
+		return nil, false, ctx.Err()
+	}
+	if readErr != nil && !errors.Is(readErr, io.EOF) || statErr != nil || afterErr != nil || after.Mode()&os.ModeSymlink != 0 || !os.SameFile(before, opened) || !os.SameFile(opened, after) {
+		return nil, false, &Error{Code: "E_PATH_CHANGED", Message: "An inventory directory changed during authority validation."}
 	}
 	sort.Slice(entries, func(a, b int) bool { return entries[a].Name() < entries[b].Name() })
-	return entries, nil
+	return entries, entriesTruncated, nil
 }

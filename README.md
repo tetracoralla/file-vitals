@@ -14,7 +14,7 @@ It is deliberately not a universal reader. It does not extract document text,
 infer dataset schemas, interpret image meaning, convert files, execute macros,
 or unpack archives.
 
-## What 0.3.0 inspects
+## What 0.3.1 inspects
 
 | Family | Built-in or optional facts |
 | --- | --- |
@@ -37,7 +37,7 @@ Unknown bytes remain unknown. An extension is evidence, not authority.
 
 Go 1.26.6 or newer is required for development and release builds. Earlier
 Go 1.26 patch releases contain standard-library vulnerabilities reachable from
-the file and path inspection boundaries. Version 0.3.0 supports Darwin and
+the file and path inspection boundaries. Version 0.3.1 supports Darwin and
 Linux, where descriptor inheritance and rooted file opening preserve the MCP
 authority boundary. The installed plugin launches its bundled native binary;
 it does not require Docker, a background service, or network access.
@@ -102,7 +102,7 @@ still requires the separate signing and notarization workflow.
 ./scripts/build_plugin.sh
 UFI_SKILL_ROOT="${UFI_SKILL_ROOT:-$HOME/.codex/skills/.system}"
 python3 "$UFI_SKILL_ROOT/plugin-creator/scripts/validate_plugin.py" \
-  dist/plugin/file-vitals-0.3.0-$(go env GOOS)-$(go env GOARCH)
+  dist/plugin/file-vitals-0.3.1-$(go env GOOS)-$(go env GOARCH)
 codex plugin marketplace add dist/plugin
 codex plugin add file-vitals@file-vitals-local
 ```
@@ -143,7 +143,8 @@ source checkout; `finspect` and its MCP route remain independently available.
 - Archives are only enumerated. Compressed scanning, header counts, names, and
   response bytes are capped.
 - Batch is capped at 16 explicit files and 192 KiB total response; inventory is
-  capped at 32 files, 8 levels, 256 directories, and 192 KiB total response.
+  capped at 32 files, 8 levels, 256 directories, 4,096 directory entries, and
+  192 KiB total response.
 - Signature evidence wins over extensions. Conflicts remain visible.
 - Encoding without deterministic evidence is `probable` or `unknown`, never
   promoted to exact.
@@ -162,8 +163,9 @@ The exact limits and product boundary live in
 ```
 
 This runs formatting, dependency verification, vet, race-enabled tests, builds,
-JSON Schema checks, a semantic-equivalence and Agent-call-economics comparison,
-Skill/plugin validation, self-contained packaging, and real CLI/MCP probes
+JSON Schema checks, a semantic-equivalence and Agent-call-economics comparison
+(including observed tool-catalog/schema bytes), Skill/plugin validation,
+self-contained packaging, and real CLI/MCP probes
 including cancellation and post-cancellation recovery. The
 GitHub Actions workflow repeats the native core, plugin packaging, and MCP
 runtime probes on both Ubuntu and macOS, and builds the macOS app on macOS.

@@ -28,6 +28,10 @@ const (
 	maxEnvelopeBytes     = 256 * 1024
 	toolCallTimeout      = 5 * time.Second
 	maxConcurrentCalls   = 4
+	// admitted calls include executing and queued work. Bounding this
+	// separately from callSlots prevents an input flood from creating one
+	// goroutine per request while every worker slot is occupied.
+	maxAdmittedCalls = 16
 )
 
 type Server struct {
@@ -44,6 +48,7 @@ type Server struct {
 	initialized           bool
 	cancels               map[string]map[*callHandle]struct{}
 	callSlots             chan struct{}
+	admissionSlots        chan struct{}
 	callTimeout           time.Duration
 	wg                    sync.WaitGroup
 	runWorker             func(context.Context, string, *os.File, supervisor.Request) inspector.Result
@@ -82,7 +87,7 @@ func New(executable, workspace string) (*Server, error) {
 		inputSchema: inputSchema, outputSchema: outputSchema,
 		batchInputSchema: batchInputSchema, batchOutputSchema: batchOutputSchema,
 		inventoryInputSchema: inventoryInputSchema, inventoryOutputSchema: inventoryOutputSchema,
-		cancels: map[string]map[*callHandle]struct{}{}, callSlots: make(chan struct{}, maxConcurrentCalls), callTimeout: toolCallTimeout,
+		cancels: map[string]map[*callHandle]struct{}{}, callSlots: make(chan struct{}, maxConcurrentCalls), admissionSlots: make(chan struct{}, maxAdmittedCalls), callTimeout: toolCallTimeout,
 		runWorker: supervisor.Run, runBatchWorker: supervisor.RunBatch, runInventoryWorker: supervisor.RunInventory,
 	}, nil
 }
@@ -167,6 +172,15 @@ func (s *Server) Serve(ctx context.Context, input io.Reader, output io.Writer) e
 			continue
 		}
 		if req.Method == "tools/call" {
+			select {
+			case s.admissionSlots <- struct{}{}:
+			case <-ctx.Done():
+				s.write(output, response{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{Code: -32003, Message: "Server is shutting down"}})
+				continue
+			default:
+				s.write(output, response{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{Code: -32003, Message: "File Vitals request capacity is full"}})
+				continue
+			}
 			callCtx, cancel := context.WithTimeout(ctx, s.callTimeout)
 			key := string(req.ID)
 			handle := &callHandle{cancel: cancel}
@@ -179,6 +193,7 @@ func (s *Server) Serve(ctx context.Context, input io.Reader, output io.Writer) e
 			s.wg.Add(1)
 			go func(req request, callCtx context.Context, cancel context.CancelFunc, handle *callHandle, key string) {
 				defer func() {
+					<-s.admissionSlots
 					cancel()
 					s.stateMu.Lock()
 					delete(s.cancels[key], handle)

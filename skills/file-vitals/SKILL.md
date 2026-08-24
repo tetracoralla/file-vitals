@@ -11,8 +11,9 @@ Choose exactly one operation for the current preflight:
 - Call `file_inspect_batch` for 1–16 already-known paths. Do not loop over
   `file_inspect`; preserve each returned index and path.
 - Call `workspace_inventory` when the relevant paths are not yet known. It
-  returns a bounded overview of at most 32 regular files and never follows
-  symlinks. Inspect a selected file afterward only when deeper facts are needed.
+  returns a bounded overview of at most 32 regular files, 256 directories, and
+  4,096 directory entries and never follows symlinks. Inspect a selected file
+  afterward only when deeper facts are needed.
 
 Treat signature identity, confidence, conflicts, constraints, diagnostics, and
 provenance as the result; do not re-guess the type from its filename.

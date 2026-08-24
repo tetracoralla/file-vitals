@@ -126,7 +126,7 @@ func validateRelativePath(requested string, allowRoot bool) (string, error) {
 		return "", &Error{Code: "E_PATH_ABSOLUTE", Message: "MCP file paths must be relative to the granted workspace."}
 	}
 	lower := strings.ToLower(strings.TrimSpace(requested))
-	if strings.Contains(lower, "://") || strings.HasPrefix(lower, "file:") {
+	if looksLikeURI(lower) {
 		return "", &Error{Code: "E_PATH_URI", Message: "URI-like file coordinates are not accepted."}
 	}
 	for _, segment := range strings.FieldsFunc(requested, func(r rune) bool { return r == '/' || r == '\\' }) {
@@ -139,6 +139,30 @@ func validateRelativePath(requested string, allowRoot bool) (string, error) {
 		return "", &Error{Code: "E_INVALID_PATH", Message: "Path must identify an allowed location inside the granted workspace."}
 	}
 	return clean, nil
+}
+
+func looksLikeURI(value string) bool {
+	colon := strings.IndexByte(value, ':')
+	if colon <= 0 {
+		return false
+	}
+	// RFC 3986 schemes begin with a letter and then contain only letters,
+	// digits, plus, hyphen, or dot. Reject the whole family (data:, urn:,
+	// https:foo, file:, and scheme://), not only the forms seen in old tests.
+	for index := 0; index < colon; index++ {
+		character := value[index]
+		if index == 0 {
+			if character < 'a' || character > 'z' {
+				return false
+			}
+			continue
+		}
+		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '+' || character == '-' || character == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func Code(err error) (string, string) {

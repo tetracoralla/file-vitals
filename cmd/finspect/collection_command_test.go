@@ -24,6 +24,9 @@ func TestParseCollectionArguments(t *testing.T) {
 	if _, err := parseBatchArgs([]string{"a", "a"}); err == nil {
 		t.Fatal("duplicate batch paths accepted")
 	}
+	if _, err := parseBatchArgs([]string{"a", "./a"}); err == nil {
+		t.Fatal("lexically equivalent batch paths accepted")
+	}
 	inventory, err := parseInventoryArgs([]string{"--max-depth", "0", "--timeout", "3s", "nested"})
 	if err != nil {
 		t.Fatal(err)

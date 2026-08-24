@@ -54,7 +54,7 @@ jobs:
           ./scripts/check_build_path_guard.sh
           ./scripts/check_app_build_path_guard.sh
           ./scripts/build_plugin.sh --replace
-          bundle="$PWD/dist/plugin/file-vitals-0.3.0-$(go env GOOS)-$(go env GOARCH)"
+          bundle="$PWD/dist/plugin/file-vitals-0.3.1-$(go env GOOS)-$(go env GOARCH)"
           python3 scripts/check_release_legal.py "$bundle"
           python3 scripts/probe_plugin.py "$bundle"
           (cd dist/plugin && shasum -a 256 -c "$(basename "$bundle").tar.gz.sha256")

@@ -27,6 +27,7 @@ type BatchRequest struct {
 type InventoryRequest struct {
 	Root               string           `json:"root"`
 	Items              []CollectionItem `json:"items"`
+	EntriesScanned     int              `json:"entries_scanned"`
 	DirectoriesScanned int              `json:"directories_scanned"`
 	SymlinksSkipped    int              `json:"symlinks_skipped"`
 	SpecialSkipped     int              `json:"special_entries_skipped"`

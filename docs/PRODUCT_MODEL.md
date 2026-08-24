@@ -94,8 +94,9 @@ Quick mode performs stat, signature, MIME normalization, and routing traits.
 Standard mode adds the applicable family probe. Deep mode adds bounded archive
 entry names and more expensive optional metadata; it never extracts content.
 
-The single-file result schema is version `1.1`; collection result schemas are
-version `1.0`. Single-file status is one of `ok`, `partial`,
+The single-file result schema is version `1.1`; the batch result schema is
+version `1.0`; and the workspace inventory result schema is version `1.1`.
+Single-file status is one of `ok`, `partial`,
 `unsupported`, `corrupt`, or `error`. Probable text encoding is never presented
 as exact; exact encoding requires a byte-order mark or another deterministic
 signature. `structured.parseable` is omitted when a bounded validation stops at
@@ -114,7 +115,7 @@ an internal limit, so incomplete validation is not misreported as invalidity.
 - text/structured parse window: 8 MiB;
 - optional SHA-256 input: 1 GiB;
 - batch: 16 paths and one cumulative 1 GiB SHA-256 input budget;
-- inventory: 32 files, 8 levels, and 256 directories;
+- inventory: 32 files, 8 levels, 256 directories, and 4,096 directory entries;
 - archive scan: 10,000 headers, 64 MiB decompressed scan, at most 200 returned
   names in deep mode;
 - every returned filename, diagnostic, and external scalar is length-bounded.
@@ -146,6 +147,6 @@ bundle, checksums, and rerunnable checks. The Darwin release may also include
 the minimal macOS app with the same native `finspect` binary bundled inside it.
 No network access is required at runtime.
 
-Version 0.3.0 targets Darwin and Linux. Windows packaging remains unsupported
+Version 0.3.1 targets Darwin and Linux. Windows packaging remains unsupported
 until it can preserve the same already-open-handle authority and worker
 isolation semantics; compilation alone is not treated as runtime support.

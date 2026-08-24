@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,7 +41,7 @@ func (s *Server) batchToolDefinition() map[string]any {
 func (s *Server) inventoryToolDefinition() map[string]any {
 	return map[string]any{
 		"name": "workspace_inventory", "title": "Inventory workspace files",
-		"description": "Produce a deterministic, bounded overview of regular files under one relative workspace directory: identities, routing traits, blockers, aggregate formats, skipped symlinks, and truncation. Scans at most 32 files and never follows links. Use this when paths are not yet known; use file_inspect for a selected file afterward only if deeper facts are needed.",
+		"description": "Produce a deterministic, bounded overview of regular files under one relative workspace directory: identities, routing traits, blockers, aggregate formats, skipped symlinks, and truncation. Scans at most 32 files, 256 directories, and 4096 directory entries and never follows links. Use this when paths are not yet known; use file_inspect for a selected file afterward only if deeper facts are needed.",
 		"inputSchema": s.inventoryInputSchema, "outputSchema": s.inventoryOutputSchema,
 		"annotations": map[string]any{"title": "Inventory workspace files", "readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false},
 	}
@@ -94,7 +95,7 @@ func (s *Server) handleInventoryCall(ctx context.Context, output io.Writer, id j
 	}
 	defer func() { <-s.callSlots }()
 
-	collection, collectErr := authority.CollectRegularFilesContext(ctx, s.workspace, input.Path, input.MaxDepth, inspector.MaxInventoryFiles, inspector.MaxInventoryDirs)
+	collection, collectErr := authority.CollectRegularFilesContext(ctx, s.workspace, input.Path, input.MaxDepth, inspector.MaxInventoryFiles, inspector.MaxInventoryDirs, inspector.MaxInventoryEntries)
 	if collectErr != nil {
 		if errors.Is(collectErr, context.Canceled) || errors.Is(collectErr, context.DeadlineExceeded) {
 			s.writeInventoryToolResult(output, id, inventoryContextFailure(input, collectErr, s.callTimeout.Milliseconds()), modern)
@@ -112,7 +113,7 @@ func (s *Server) handleInventoryCall(ctx context.Context, output io.Writer, id j
 		files = append(files, item.File)
 	}
 	request := supervisor.InventoryRequest{
-		Root: input.Path, Items: items, DirectoriesScanned: collection.DirectoriesScanned,
+		Root: input.Path, Items: items, EntriesScanned: collection.EntriesScanned, DirectoriesScanned: collection.DirectoriesScanned,
 		SymlinksSkipped: collection.SymlinksSkipped, SpecialSkipped: collection.SpecialSkipped,
 		Truncated: collection.Truncated, MaxDepth: input.MaxDepth, TimeoutMS: s.callTimeout.Milliseconds(),
 	}
@@ -136,10 +137,11 @@ func decodeBatchToolInput(raw json.RawMessage) (batchToolInput, error) {
 		if path == "" || len(path) > 4096 {
 			return input, errors.New("each path must contain 1 to 4096 characters")
 		}
-		if _, exists := seen[path]; exists {
+		key := filepath.Clean(path)
+		if _, exists := seen[key]; exists {
 			return input, errors.New("paths must not contain duplicates")
 		}
-		seen[path] = struct{}{}
+		seen[key] = struct{}{}
 	}
 	if input.Mode == "" {
 		input.Mode = inspector.ModeStandard
