@@ -33,7 +33,7 @@
           "target": "file_inspect",
           "contractSchemaDigests": {
             "input": "sha256:d97332911b5468a6d4f0d77c19b25ccab2fc3d95ff4d0477f5cbf964adf7a155",
-            "output": "sha256:97a6d3439d3a1ad0f79bf22bb96c58088cf6618290e26a43381b5a420897ebe1"
+            "output": "sha256:d7bc125c3ec4fdb1790f574b3c3031e106b95931860f0bfc2cc2c2600590a4de"
           },
           "transportSchemaDigests": {
             "input": "sha256:c7fd2182ca05ac8addb4ee0f06cd1f084d12f80efd51a20f59338f3773e2bd30",
