@@ -17,6 +17,11 @@ Choose exactly one operation for the current preflight:
 
 Treat signature identity, confidence, conflicts, constraints, diagnostics, and
 provenance as the result; do not re-guess the type from its filename.
+When the caller requests structured facts, copy every available canonical value
+exactly. Do not relabel `status`, `kind`, `media_type`, `format`, integrity
+predicates, archive facts, or inventory counts; use null only when the tool did
+not return that field. In particular, a failed `sha256_matches` predicate does
+not change an otherwise `ok` inspection status.
 
 - Use `standard` by default.
 - Use `quick` when identity and routing traits are enough.
@@ -26,6 +31,10 @@ provenance as the result; do not re-guess the type from its filename.
   time budget.
 - Supply `expected_sha256` when a known digest must be verified. Use the explicit
   `sha256_matches` predicate; do not compare digests mentally.
+
+One successful tool result is terminal for the current preflight. Do not call
+the same operation again to confirm it. `sha256_matches: false` is a completed
+verification result, not a reason to retry.
 
 Pass a path relative to the workspace granted by the host. `E_WORKSPACE_REQUIRED`,
 path-authority errors, a stable unsupported result, or a limit error is terminal

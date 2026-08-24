@@ -47,7 +47,7 @@ def main() -> None:
         "CFBundleIdentifier": "org.openadam.file-vitals",
         "CFBundleName": "File Vitals",
         "CFBundlePackageType": "APPL",
-        "CFBundleShortVersionString": "0.3.1",
+        "CFBundleShortVersionString": "0.3.2",
         "LSMinimumSystemVersion": "14.0",
     }
     for key, value in expected.items():

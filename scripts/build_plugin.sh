@@ -3,11 +3,11 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_root="$(cd "${script_dir}/.." && pwd -P)"
-version="0.3.1"
+version="0.3.2"
 goos="$(go env GOOS)"
 case "${goos}" in
   darwin|linux) ;;
-  *) echo "0.3.1 runtime packaging supports Darwin and Linux" >&2; exit 1 ;;
+  *) echo "0.3.2 runtime packaging supports Darwin and Linux" >&2; exit 1 ;;
 esac
 platform="${goos}-$(go env GOARCH)"
 dist_root="${repo_root}/dist/plugin"

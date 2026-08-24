@@ -14,7 +14,7 @@ It is deliberately not a universal reader. It does not extract document text,
 infer dataset schemas, interpret image meaning, convert files, execute macros,
 or unpack archives.
 
-## What 0.3.1 inspects
+## What 0.3.2 inspects
 
 | Family | Built-in or optional facts |
 | --- | --- |
@@ -37,7 +37,7 @@ Unknown bytes remain unknown. An extension is evidence, not authority.
 
 Go 1.26.6 or newer is required for development and release builds. Earlier
 Go 1.26 patch releases contain standard-library vulnerabilities reachable from
-the file and path inspection boundaries. Version 0.3.1 supports Darwin and
+the file and path inspection boundaries. Version 0.3.2 supports Darwin and
 Linux, where descriptor inheritance and rooted file opening preserve the MCP
 authority boundary. The installed plugin launches its bundled native binary;
 it does not require Docker, a background service, or network access.
@@ -102,7 +102,7 @@ still requires the separate signing and notarization workflow.
 ./scripts/build_plugin.sh
 UFI_SKILL_ROOT="${UFI_SKILL_ROOT:-$HOME/.codex/skills/.system}"
 python3 "$UFI_SKILL_ROOT/plugin-creator/scripts/validate_plugin.py" \
-  dist/plugin/file-vitals-0.3.1-$(go env GOOS)-$(go env GOARCH)
+  dist/plugin/file-vitals-0.3.2-$(go env GOOS)-$(go env GOARCH)
 codex plugin marketplace add dist/plugin
 codex plugin add file-vitals@file-vitals-local
 ```

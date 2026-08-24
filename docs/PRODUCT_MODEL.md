@@ -147,6 +147,6 @@ bundle, checksums, and rerunnable checks. The Darwin release may also include
 the minimal macOS app with the same native `finspect` binary bundled inside it.
 No network access is required at runtime.
 
-Version 0.3.1 targets Darwin and Linux. Windows packaging remains unsupported
+Version 0.3.2 targets Darwin and Linux. Windows packaging remains unsupported
 until it can preserve the same already-open-handle authority and worker
 isolation semantics; compilation alone is not treated as runtime support.

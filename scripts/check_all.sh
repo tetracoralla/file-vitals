@@ -42,7 +42,7 @@ python3 "${plugin_validator}" "${repo_root}"
 ./scripts/check_build_path_guard.sh
 ./scripts/check_app_build_path_guard.sh
 ./scripts/build_plugin.sh --replace
-bundle="${repo_root}/dist/plugin/file-vitals-0.3.1-$(go env GOOS)-$(go env GOARCH)"
+bundle="${repo_root}/dist/plugin/file-vitals-0.3.2-$(go env GOOS)-$(go env GOARCH)"
 python3 scripts/check_release_legal.py "${bundle}"
 python3 "${plugin_validator}" "${bundle}"
 python3 scripts/probe_plugin.py "${bundle}"
@@ -54,6 +54,8 @@ tar -tzf "${bundle}.tar.gz" >/dev/null
 # The full swift test suite (which needs Xcode) runs in CI instead.
 if [[ "$(go env GOOS)" == "darwin" ]] && command -v swift >/dev/null 2>&1; then
   ./script/build_and_run.sh build
+  cmp "${bundle}/runtime/finspect" "${repo_root}/dist/File Vitals.app/Contents/Resources/runtime/finspect"
+  echo "plugin and macOS app bundled engine parity: ok"
 fi
 
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then

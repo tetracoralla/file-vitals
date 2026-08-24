@@ -75,7 +75,7 @@ struct ContentView: View {
         .dropDestination(for: URL.self) { urls, _ in
             // Only local file URLs are inspectable; a web link dragged from a
             // browser would become a garbage engine path.
-            guard let url = urls.first, url.isFileURL else { return false }
+            guard let url = DropSelection.firstFileURL(in: urls) else { return false }
             store.select(url)
             return true
         } isTargeted: { targeted in
