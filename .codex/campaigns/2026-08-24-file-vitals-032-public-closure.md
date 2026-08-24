@@ -1,7 +1,7 @@
 ---
 timestamp: 2026-08-24T18:45:00+08:00
 segment: File Vitals 0.3.2 public closure
-status: in_progress
+status: complete
 source: codex
 ---
 
@@ -26,8 +26,10 @@ is reconciled.
   ADMIN permission. Current GitHub API state requires strict Linux/macOS checks
   and linear history; force pushes and deletion are disabled, and only squash
   merge is enabled. No approving-review rule or repository ruleset is active.
-- Current branch: `codex/file-vitals-closure` based on local commit `ef1c967`;
-  the remote `main` remains at `186d72f` and is not ahead.
+- PR #1 was squash-merged to `main` as
+  `d175c38a9f1991e6e80f9807fa791763b6a41db2`. Local `main` is clean and aligned
+  with `origin/main`; the feature branch was deleted after tree-identity
+  verification.
 - Product/plugin version: 0.3.2. The version bump covers the canonical-value
   reporting and successful-call no-retry Skill contract added after 0.3.1.
 - macOS drop handling now routes through `DropSelection.firstFileURL`; negative
@@ -68,12 +70,12 @@ The observed 30,445-byte three-tool catalog therefore remains a measurement,
 not a demonstrated optimization requirement. Do not shrink strict schemas
 without a new quality-equivalent paired experiment.
 
-## Remaining lanes and next action
+## Closure and residual acceptance
 
 - Local Swift XCTest: setup-blocked because the active Command Line Tools Swift
-  runtime has no XCTest module. GitHub CI already defines
-  `swift test --package-path app/FileVitals` on `macos-15`; the new PR SHA must
-  run it.
+  runtime has no XCTest module. GitHub `macos-15` CI executed all seven XCTest
+  cases twice on the final PR source, with zero failures; the merge commit's
+  push CI also passed.
 - Native Finder-to-App drag: runtime BLOCKED in the current Computer Use host.
   Cross-display drag calls completed but did not deliver a URL to the App.
   Logic XCTest and SwiftUI compilation do not replace this observation.
@@ -81,8 +83,14 @@ without a new quality-equivalent paired experiment.
   mode/hash, copy, error, and recovery flows passed and were not redesigned.
 
 Final local diff review, packaged App smoke, dogfood-harness offline self-check,
-and the complete source/package gate are PASS. PR #1 ran Linux, macOS, and all
-configured CodeQL languages successfully on commit `23e2d41`; macOS executed
-seven XCTest cases with zero failures. Next executable action: publish this
-governance-fact correction, wait for the new head checks, then squash-merge PR
-#1 and reconcile local, installed, and remote state.
+and the complete source/package gate are PASS. PR #1's final head
+`6c64bd27ae56335624924b06befe8ccdf8e96bfb` passed Linux, macOS, and CodeQL for
+Actions, Go, Python, and Swift before merge. The merge commit then passed CI run
+`32722652366` and CodeQL run `32722652626`; current CodeQL and Dependabot open
+alert counts are zero. Installed File Vitals 0.3.2 remains enabled and matches
+the source plugin and App engine SHA-256 recorded above.
+
+No immediate next development is justified. Reopen engineering only with a
+native drag-capable host that can close the remaining delivery observation, a
+new owner experience decision, or a quality-equivalent baseline experiment
+that demonstrates a concrete schema-cost regression.
