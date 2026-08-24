@@ -43,7 +43,8 @@ sequences against the built binary.
     response and serves the next request; concurrency is bounded with queue
     admission sharing each call's deadline, executing plus queued requests have
     a fixed admission cap, responses correlate by envelope id, and a deep
-    archive inspection projects its bounded entry facts.
+    archive inspection does not leak product-only archive facts into
+    `file.inspect@0.1.0`.
 17. Cancelling or replacing a macOS app inspection terminates the running
     engine process, a pending task never re-reads the newer selection, and
     release app builds resolve only the bundled engine.

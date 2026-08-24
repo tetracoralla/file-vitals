@@ -25,7 +25,6 @@
     "integrity": { "$ref": "#/$defs/integrity" },
     "structured": { "$ref": "#/$defs/structured" },
     "image": { "$ref": "#/$defs/image" },
-    "archive": { "$ref": "#/$defs/archive" },
     "diagnostics": {
       "type": "array",
       "maxItems": 64,
@@ -111,39 +110,6 @@
         "color_model": { "type": "string", "maxLength": 64 },
         "has_alpha": { "type": "boolean" },
         "frame_count": { "type": "integer", "minimum": 1 }
-      }
-    },
-    "archive": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["format", "entries_scanned", "uncompressed_bytes_scanned", "encrypted", "entries_truncated", "scan_truncated"],
-      "description": "Container totals are standard facts; deep mode additionally fills the bounded entry-name list. Projecting archive facts keeps mode=deep meaningful at this boundary.",
-      "properties": {
-        "format": { "type": "string", "maxLength": 64 },
-        "entry_count": { "type": "integer", "minimum": 0 },
-        "entries_scanned": { "type": "integer", "minimum": 0 },
-        "total_uncompressed_bytes": { "type": "integer", "minimum": 0 },
-        "uncompressed_bytes_scanned": { "type": "integer", "minimum": 0 },
-        "encrypted": { "type": "boolean" },
-        "entries": {
-          "type": "array",
-          "maxItems": 200,
-          "items": { "$ref": "#/$defs/archiveEntry" }
-        },
-        "entries_truncated": { "type": "boolean" },
-        "scan_truncated": { "type": "boolean" }
-      }
-    },
-    "archiveEntry": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["name", "size_bytes", "directory", "encrypted"],
-      "properties": {
-        "name": { "type": "string", "maxLength": 256 },
-        "size_bytes": { "type": "integer", "minimum": 0 },
-        "compressed_bytes": { "type": "integer", "minimum": 0 },
-        "directory": { "type": "boolean" },
-        "encrypted": { "type": "boolean" }
       }
     },
     "diagnostic": {

@@ -295,9 +295,11 @@ func TestCapabilityQueueAdmissionSharesDeadline(t *testing.T) {
 	}
 }
 
-// TestDeepModeProjectsArchiveFacts pins the boundary decision: deep's bounded
-// entry names must be visible at the capability projection.
-func TestDeepModeProjectsArchiveFacts(t *testing.T) {
+// TestCapabilityProjectionKeepsArchiveFactsProductLocal prevents richer
+// File Vitals fields from silently changing file.inspect@0.1.0. Deep mode is
+// still accepted, but archive details remain available only through the
+// product contracts until a later Capability version defines their meaning.
+func TestCapabilityProjectionKeepsArchiveFactsProductLocal(t *testing.T) {
 	useInProcessInspector(t)
 	root := repositoryRoot(t)
 	zipPath := filepath.Join(root, "capabilities", "fixtures", "entries.zip")
@@ -311,9 +313,16 @@ func TestDeepModeProjectsArchiveFacts(t *testing.T) {
 	if !response.OK {
 		t.Fatalf("deep archive inspection failed: %+v", response.Error)
 	}
-	result := response.Result.(canonicalResult)
-	if result.Archive == nil || len(result.Archive.Entries) == 0 {
-		t.Fatalf("deep archive facts were not projected: %+v", result.Archive)
+	encoded, err := json.Marshal(response.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var projected map[string]any
+	if err := json.Unmarshal(encoded, &projected); err != nil {
+		t.Fatal(err)
+	}
+	if _, leaked := projected["archive"]; leaked || strings.Contains(string(encoded), "entry-0.txt") {
+		t.Fatalf("product-local archive facts leaked into file.inspect@0.1.0: %s", encoded)
 	}
 }
 

@@ -130,6 +130,11 @@ shapes remain separate.
 
 ## Capability boundary
 
+The portable `org.openadam.file.inspect@0.1.0` projection is intentionally
+narrower than the product result. In particular, File Vitals archive details
+remain product-owned until a later Capability version explicitly defines their
+portable meaning; `deep` is still a valid inspection mode at the v0.1 boundary.
+
 Routing traits describe possible next-step affordances such as `previewable`,
 `text_extractable`, `enumerable`, `extractable`, `transcodable`,
 `page_addressable`, or `executable`. They do not claim that a downstream tool is
