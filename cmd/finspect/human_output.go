@@ -116,11 +116,51 @@ func printHuman(output io.Writer, result inspector.Result) {
 	if result.Integrity.SHA256 != "" {
 		fmt.Fprintf(output, "SHA-256: %s\n", result.Integrity.SHA256)
 	}
+	if result.Integrity.SHA256Matches != nil {
+		fmt.Fprintf(output, "SHA-256 matches expected: %t\n", *result.Integrity.SHA256Matches)
+	}
 	if len(result.Traits) > 0 {
 		fmt.Fprintf(output, "Traits: %s\n", strings.Join(result.Traits, ", "))
 	}
+	if len(result.Constraints) > 0 {
+		fmt.Fprintf(output, "Action blockers: %s\n", strings.Join(result.Constraints, ", "))
+	}
 	for _, diagnostic := range result.Diagnostics {
 		fmt.Fprintf(output, "%s %s: %s\n", strings.ToUpper(diagnostic.Severity), diagnostic.Code, diagnostic.Message)
+	}
+	if result.Error != nil {
+		fmt.Fprintf(output, "%s: %s\n", result.Error.Code, result.Error.Message)
+	}
+}
+
+func printHumanBatch(output io.Writer, result inspector.BatchResult) {
+	fmt.Fprintf(output, "%s · %d files\n", result.Status, len(result.Items))
+	for _, item := range result.Items {
+		if item.Result.Error != nil {
+			fmt.Fprintf(output, "[%d] %s · %s · %s\n", item.Index, item.Path, item.Result.Status, item.Result.Error.Code)
+			continue
+		}
+		fmt.Fprintf(output, "[%d] %s · %s · %s · %s\n", item.Index, item.Path, item.Result.Status, item.Result.Identity.Format, formatBytes(item.Result.File.SizeBytes))
+	}
+	if result.Error != nil {
+		fmt.Fprintf(output, "%s: %s\n", result.Error.Code, result.Error.Message)
+	}
+}
+
+func printHumanInventory(output io.Writer, result inspector.InventoryResult) {
+	fmt.Fprintf(output, "%s · %d files · %d entries · %d directories · %s\n", result.Status, result.FilesScanned, result.EntriesScanned, result.DirectoriesScanned, formatBytes(result.TotalSizeBytes))
+	for _, format := range result.Formats {
+		fmt.Fprintf(output, "%s · %d files · %s\n", format.Format, format.FileCount, formatBytes(format.TotalSizeBytes))
+	}
+	for _, item := range result.Items {
+		fmt.Fprintf(output, "%s · %s · %s", item.Path, item.Status, item.Identity.Format)
+		if len(item.Constraints) > 0 {
+			fmt.Fprintf(output, " · blockers=%s", strings.Join(item.Constraints, ","))
+		}
+		fmt.Fprintln(output)
+	}
+	if result.Limits.Truncated {
+		fmt.Fprintln(output, "Inventory truncated at the declared limits.")
 	}
 	if result.Error != nil {
 		fmt.Fprintf(output, "%s: %s\n", result.Error.Code, result.Error.Message)

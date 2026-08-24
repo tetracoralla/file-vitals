@@ -9,19 +9,29 @@ import (
 )
 
 const (
-	MaxResponseBytes      = 256 * 1024
-	MaxProbeStdoutBytes   = 1024 * 1024
-	MaxProbeStderrBytes   = 16 * 1024
-	MaxMemoryBytes        = 384 * 1024 * 1024
-	GoMemoryLimitBytes    = 256 * 1024 * 1024
-	MaxTextBytes          = 8 * 1024 * 1024
-	MaxHashBytes          = int64(1024 * 1024 * 1024)
-	MaxArchiveHeaders     = 10_000
-	MaxArchiveScanBytes   = 64 * 1024 * 1024
-	MaxArchiveEntryNames  = 200
-	MaxOOXMLMetadataBytes = 1024 * 1024
-	MaxDiagnosticCount    = 64
-	MaxStreamCount        = 32
+	MaxResponseBytes          = 256 * 1024
+	MaxProbeStdoutBytes       = 1024 * 1024
+	MaxProbeStderrBytes       = 16 * 1024
+	MaxMemoryBytes            = 384 * 1024 * 1024
+	GoMemoryLimitBytes        = 256 * 1024 * 1024
+	MaxTextBytes              = 8 * 1024 * 1024
+	MaxHashBytes              = int64(1024 * 1024 * 1024)
+	MaxArchiveHeaders         = 10_000
+	MaxArchiveScanBytes       = 64 * 1024 * 1024
+	MaxArchiveEntryNames      = 200
+	MaxOOXMLMetadataBytes     = 1024 * 1024
+	MaxOOXMLMetadataTotal     = 8 * 1024 * 1024
+	MaxOOXMLRelationships     = 256
+	MaxPDFTextProbePages      = 5
+	MaxDiagnosticCount        = 64
+	MaxStreamCount            = 32
+	MaxBatchItems             = 16
+	MaxInventoryFiles         = 32
+	MaxInventoryDepth         = 8
+	MaxInventoryDirs          = 256
+	MaxInventoryEntries       = 4096
+	MaxCollectionBytes        = 192 * 1024
+	MaxCollectionRequestBytes = 256 * 1024
 )
 
 type Mode string
@@ -40,10 +50,11 @@ const (
 )
 
 type Options struct {
-	Mode      Mode
-	Hash      HashMode
-	Timeout   time.Duration
-	ProbePath string
+	Mode           Mode
+	Hash           HashMode
+	ExpectedSHA256 string
+	Timeout        time.Duration
+	ProbePath      string
 }
 
 func (o Options) Normalized() Options {
@@ -91,6 +102,7 @@ type Result struct {
 	File          FileInfo      `json:"file"`
 	Identity      Identity      `json:"identity"`
 	Traits        []string      `json:"traits"`
+	Constraints   []string      `json:"constraints"`
 	Integrity     Integrity     `json:"integrity"`
 	Text          *TextInfo     `json:"text,omitempty"`
 	Structured    *Structured   `json:"structured,omitempty"`
@@ -100,6 +112,9 @@ type Result struct {
 	AudioStreams  []AudioStream `json:"audio_streams,omitempty"`
 	Archive       *ArchiveInfo  `json:"archive,omitempty"`
 	PDF           *PDFInfo      `json:"pdf,omitempty"`
+	OOXML         *OOXMLInfo    `json:"ooxml,omitempty"`
+	SVG           *SVGInfo      `json:"svg,omitempty"`
+	Indirection   *Indirection  `json:"indirection,omitempty"`
 	Font          *FontInfo     `json:"font,omitempty"`
 	Binary        *BinaryInfo   `json:"binary,omitempty"`
 	Diagnostics   []Diagnostic  `json:"diagnostics"`
@@ -134,9 +149,11 @@ type Identity struct {
 }
 
 type Integrity struct {
-	Readable  bool   `json:"readable"`
-	Parseable *bool  `json:"parseable,omitempty"`
-	SHA256    string `json:"sha256,omitempty"`
+	Readable       bool   `json:"readable"`
+	Parseable      *bool  `json:"parseable,omitempty"`
+	SHA256         string `json:"sha256,omitempty"`
+	ExpectedSHA256 string `json:"expected_sha256,omitempty"`
+	SHA256Matches  *bool  `json:"sha256_matches,omitempty"`
 }
 
 type EncodingInfo struct {
@@ -206,26 +223,61 @@ type ArchiveEntry struct {
 	CompressedBytes *int64 `json:"compressed_bytes,omitempty"`
 	Directory       bool   `json:"directory"`
 	Encrypted       bool   `json:"encrypted"`
+	Kind            string `json:"kind"`
+}
+
+type ArchivePathFacts struct {
+	AbsolutePaths      int  `json:"absolute_paths"`
+	ParentPaths        int  `json:"parent_paths"`
+	LinkEntries        int  `json:"link_entries"`
+	DeviceEntries      int  `json:"device_entries"`
+	InspectionComplete bool `json:"inspection_complete"`
 }
 
 type ArchiveInfo struct {
-	Format                   string         `json:"format"`
-	EntryCount               *int           `json:"entry_count,omitempty"`
-	EntriesScanned           int            `json:"entries_scanned"`
-	TotalUncompressedBytes   *int64         `json:"total_uncompressed_bytes,omitempty"`
-	UncompressedBytesScanned int64          `json:"uncompressed_bytes_scanned"`
-	Encrypted                bool           `json:"encrypted"`
-	Entries                  []ArchiveEntry `json:"entries,omitempty"`
-	EntriesTruncated         bool           `json:"entries_truncated"`
-	ScanTruncated            bool           `json:"scan_truncated"`
+	Format                   string           `json:"format"`
+	EntryCount               *int             `json:"entry_count,omitempty"`
+	EntriesScanned           int              `json:"entries_scanned"`
+	TotalUncompressedBytes   *int64           `json:"total_uncompressed_bytes,omitempty"`
+	UncompressedBytesScanned int64            `json:"uncompressed_bytes_scanned"`
+	Encrypted                bool             `json:"encrypted"`
+	PathFacts                ArchivePathFacts `json:"path_facts"`
+	Entries                  []ArchiveEntry   `json:"entries,omitempty"`
+	EntriesTruncated         bool             `json:"entries_truncated"`
+	ScanTruncated            bool             `json:"scan_truncated"`
 }
 
 type PDFInfo struct {
-	Version   string `json:"version,omitempty"`
-	PageCount int    `json:"page_count,omitempty"`
-	Encrypted *bool  `json:"encrypted,omitempty"`
-	Title     string `json:"title,omitempty"`
-	Author    string `json:"author,omitempty"`
+	Version           string `json:"version,omitempty"`
+	PageCount         int    `json:"page_count,omitempty"`
+	Encrypted         *bool  `json:"encrypted,omitempty"`
+	Title             string `json:"title,omitempty"`
+	Author            string `json:"author,omitempty"`
+	TextLayer         string `json:"text_layer"`
+	TextPagesSampled  int    `json:"text_pages_sampled"`
+	TextLayerComplete bool   `json:"text_layer_complete"`
+}
+
+type OOXMLInfo struct {
+	Kind                  string `json:"kind"`
+	SheetCount            *int   `json:"sheet_count,omitempty"`
+	SlideCount            *int   `json:"slide_count,omitempty"`
+	MacroEnabled          bool   `json:"macro_enabled"`
+	ExternalRelationships int    `json:"external_relationships"`
+	EmbeddedObjects       int    `json:"embedded_objects"`
+	InspectionComplete    bool   `json:"inspection_complete"`
+}
+
+type SVGInfo struct {
+	ScriptCount        int  `json:"script_count"`
+	ExternalHrefCount  int  `json:"external_href_count"`
+	InspectionComplete bool `json:"inspection_complete"`
+}
+
+type Indirection struct {
+	Kind         string `json:"kind"`
+	OID          string `json:"oid"`
+	DeclaredSize int64  `json:"declared_size"`
 }
 
 type FontAxis struct {

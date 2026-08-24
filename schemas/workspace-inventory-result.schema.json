@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://file-vitals.local/schema/workspace-inventory-result-1.1.json",
+  "title": "File Vitals workspace inventory result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "status", "root", "files_scanned", "entries_scanned", "directories_scanned", "symlinks_skipped", "special_entries_skipped", "total_size_bytes", "formats", "items", "diagnostics", "limits"],
+  "properties": {
+    "schema_version": {"const": "1.1"},
+    "status": {"enum": ["ok", "partial", "error"]},
+    "root": {"type": "string", "maxLength": 4096},
+    "files_scanned": {"type": "integer", "minimum": 0, "maximum": 32},
+    "entries_scanned": {"type": "integer", "minimum": 0, "maximum": 4096},
+    "directories_scanned": {"type": "integer", "minimum": 0, "maximum": 256},
+    "symlinks_skipped": {"type": "integer", "minimum": 0},
+    "special_entries_skipped": {"type": "integer", "minimum": 0},
+    "total_size_bytes": {"type": "integer", "minimum": 0},
+    "formats": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/format"}},
+    "items": {"type": "array", "maxItems": 32, "items": {"$ref": "#/$defs/item"}},
+    "diagnostics": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/diagnostic"}},
+    "limits": {"$ref": "#/$defs/limits"},
+    "error": {"$ref": "#/$defs/error"}
+  },
+  "$defs": {
+    "identity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "media_type", "format", "confidence"],
+      "properties": {
+        "kind": {"enum": ["text", "data", "image", "media", "audio", "video", "document", "archive", "font", "binary", "unknown"]},
+        "media_type": {"type": "string", "maxLength": 128},
+        "format": {"type": "string", "maxLength": 128},
+        "confidence": {"enum": ["exact", "high", "probable", "unknown"]},
+        "extension_match": {"type": "boolean"}
+      }
+    },
+    "item": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "status", "size_bytes", "identity", "traits", "constraints", "diagnostic_codes"],
+      "properties": {
+        "path": {"type": "string", "maxLength": 4096},
+        "status": {"enum": ["ok", "partial", "unsupported", "corrupt", "error"]},
+        "size_bytes": {"type": "integer", "minimum": 0},
+        "identity": {"$ref": "#/$defs/identity"},
+        "traits": {"type": "array", "maxItems": 16, "items": {"type": "string", "maxLength": 64}},
+        "constraints": {"type": "array", "maxItems": 16, "items": {"enum": ["active_content", "archive_devices", "archive_links", "archive_unsafe_paths", "embedded_objects", "encrypted", "external_references", "indirect_content", "integrity_mismatch"]}},
+        "diagnostic_codes": {"type": "array", "maxItems": 64, "items": {"type": "string", "pattern": "^[A-Z0-9_]+$", "maxLength": 64}},
+        "error": {"$ref": "#/$defs/error"}
+      }
+    },
+    "format": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "media_type", "format", "file_count", "total_size_bytes"],
+      "properties": {
+        "kind": {"enum": ["text", "data", "image", "media", "audio", "video", "document", "archive", "font", "binary", "unknown"]},
+        "media_type": {"type": "string", "maxLength": 128},
+        "format": {"type": "string", "maxLength": 128},
+        "file_count": {"type": "integer", "minimum": 1, "maximum": 32},
+        "total_size_bytes": {"type": "integer", "minimum": 0}
+      }
+    },
+    "diagnostic": {
+      "type": "object", "additionalProperties": false, "required": ["code", "severity", "message"],
+      "properties": {"code": {"type": "string", "pattern": "^[A-Z0-9_]+$", "maxLength": 64}, "severity": {"enum": ["info", "warning", "error"]}, "message": {"type": "string", "maxLength": 512}}
+    },
+    "limits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["max_depth", "max_files", "max_directories", "max_entries", "response_bytes_max", "timeout_ms", "memory_bytes_max"],
+      "properties": {
+        "max_depth": {"type": "integer", "minimum": 0, "maximum": 8},
+        "max_files": {"const": 32},
+        "max_directories": {"const": 256},
+        "max_entries": {"const": 4096},
+        "response_bytes_max": {"const": 196608},
+        "timeout_ms": {"type": "integer", "minimum": 1},
+        "memory_bytes_max": {"type": "integer", "minimum": 1},
+        "truncated": {"type": "boolean"}
+      }
+    },
+    "error": {
+      "type": "object", "additionalProperties": false, "required": ["code", "message"],
+      "properties": {"code": {"type": "string", "pattern": "^E_[A-Z0-9_]+$", "maxLength": 64}, "message": {"type": "string", "maxLength": 512}}
+    }
+  }
+}

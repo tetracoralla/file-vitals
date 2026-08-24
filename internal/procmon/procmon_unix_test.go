@@ -7,12 +7,44 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 )
+
+func TestRunPassesMultipleFilesInDeclaredDescriptorOrder(t *testing.T) {
+	firstPath := filepath.Join(t.TempDir(), "first.txt")
+	secondPath := filepath.Join(t.TempDir(), "second.txt")
+	if err := os.WriteFile(firstPath, []byte("first"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondPath, []byte("second"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	first, err := os.Open(firstPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer first.Close()
+	second, err := os.Open(secondPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer second.Close()
+	result, err := Run(context.Background(), Spec{
+		Name: "/bin/sh", Args: []string{"-c", "dd if=/dev/fd/3 bs=5 count=1 2>/dev/null; dd if=/dev/fd/4 bs=6 count=1 2>/dev/null"},
+		Files: []*os.File{first, second}, StdoutBytes: 64, StderrBytes: 64,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(result.Stdout) != "firstsecond" {
+		t.Fatalf("descriptor order: %q", result.Stdout)
+	}
+}
 
 func TestGroupMemoryHelper(t *testing.T) {
 	switch os.Getenv("UFI_GROUP_MEMORY_HELPER") {

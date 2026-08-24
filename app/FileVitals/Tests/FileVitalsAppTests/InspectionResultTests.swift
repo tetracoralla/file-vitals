@@ -6,7 +6,7 @@ final class InspectionResultTests: XCTestCase {
     func testDecodesPublishedResultAndBuildsSummary() throws {
         let json = #"""
     {
-      "schema_version": "1.0",
+      "schema_version": "1.1",
       "status": "ok",
       "file": {"name": "sample.json", "size_bytes": 12, "extension": ".json"},
       "identity": {
@@ -18,6 +18,7 @@ final class InspectionResultTests: XCTestCase {
         "conflicts": []
       },
       "traits": ["metadata_readable", "text_extractable"],
+      "constraints": [],
       "integrity": {
         "readable": true,
         "parseable": true,
@@ -37,7 +38,7 @@ final class InspectionResultTests: XCTestCase {
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let result = try decoder.decode(InspectionResult.self, from: Data(json.utf8))
 
-        XCTAssertEqual(result.schemaVersion, "1.0")
+        XCTAssertEqual(result.schemaVersion, "1.1")
         XCTAssertEqual(result.identity.extensionMatch, true)
         XCTAssertEqual(result.structured?.parseable, true)
         let summary = SummaryFormatter.summary(for: result)
@@ -52,7 +53,7 @@ final class InspectionResultTests: XCTestCase {
         // transport-level garbage.
         let json = #"""
     {
-      "schema_version": "1.0",
+      "schema_version": "1.1",
       "status": "error",
       "file": {"name": "missing.txt", "size_bytes": 0, "extension": ".txt"},
       "identity": {
@@ -64,6 +65,7 @@ final class InspectionResultTests: XCTestCase {
         "conflicts": []
       },
       "traits": [],
+      "constraints": [],
       "integrity": {"readable": false},
       "diagnostics": [],
       "limits": {"mode": "quick", "response_bytes_max": 262144, "timeout_ms": 5000, "memory_bytes_max": 402653184},
@@ -85,7 +87,7 @@ final class InspectionResultTests: XCTestCase {
     func testSummarySurfacesDiagnosticsAndConflicts() throws {
         let json = #"""
     {
-      "schema_version": "1.0",
+      "schema_version": "1.1",
       "status": "partial",
       "file": {"name": "clip.mov", "size_bytes": 4096, "extension": ".mov"},
       "identity": {
@@ -97,6 +99,7 @@ final class InspectionResultTests: XCTestCase {
         "conflicts": ["Extension suggests video/mp4 but verified content indicates video/quicktime."]
       },
       "traits": ["container", "playable"],
+      "constraints": ["external_references"],
       "integrity": {"readable": true},
       "diagnostics": [
         {"code": "EXTENSION_MISMATCH", "severity": "warning", "message": "The filename extension does not match the detected byte signature."}
@@ -109,8 +112,10 @@ final class InspectionResultTests: XCTestCase {
         let result = try decoder.decode(InspectionResult.self, from: Data(json.utf8))
         XCTAssertEqual(result.identity.conflicts.count, 1)
         XCTAssertEqual(result.diagnostics.first?.code, "EXTENSION_MISMATCH")
+		XCTAssertEqual(result.constraints, ["external_references"])
         let summary = SummaryFormatter.summary(for: result)
         XCTAssertTrue(summary.contains("QuickTime"), "summary should name the identity, got: \(summary)")
+		XCTAssertTrue(summary.contains("contains external references"), "summary should translate action blockers, got: \(summary)")
         XCTAssertTrue(summary.contains("partial") || summary.contains("warning") || summary.contains("EXTENSION_MISMATCH") || summary.contains("video/quicktime"),
                       "summary should reflect non-ok evidence, got: \(summary)")
     }

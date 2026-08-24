@@ -3,9 +3,10 @@
 File Vitals is developed by openAdam.
 
 File Vitals is the deterministic file-preflight layer an Agent can call before
-it chooses a format-specific tool. Give it one file; it reports what the bytes
-indicate, typed structural properties, uncertainty and conflicts, routing
-traits, integrity, and probe provenance through one stable schema.
+it chooses a format-specific tool. Give it one file, an explicit batch, or a
+workspace directory; it reports what the bytes indicate, typed structural
+properties, uncertainty, action blockers, routing traits, integrity, and probe
+provenance through strict bounded schemas.
 
 **Know the file before you act.**
 
@@ -13,20 +14,22 @@ It is deliberately not a universal reader. It does not extract document text,
 infer dataset schemas, interpret image meaning, convert files, execute macros,
 or unpack archives.
 
-## What 0.1.0 inspects
+## What 0.3.2 inspects
 
 | Family | Built-in or optional facts |
 | --- | --- |
-| Any regular file | size, extension evidence, signature/MIME identity, confidence, conflicts, optional SHA-256 |
+| Any regular file | size, extension evidence, signature/MIME identity, confidence, conflicts, optional or expected SHA-256 with explicit match predicate |
 | Text | BOM, encoding certainty, line endings, exact line count when fully scanned |
 | JSON, JSONL, YAML, TOML, CSV, TSV, XML, SVG | bounded syntax validation without data-shape inference |
 | PNG, JPEG, GIF, WebP, SVG | dimensions, color model, bit depth or alpha when determinable |
 | MP4, MOV, MKV, WebM, MP3, WAV, FLAC, Ogg | container, duration, streams, codecs, rational FPS via optional `ffprobe` |
-| ZIP, tar, gzip/tar.gz | bounded enumeration, encryption flags, honest scanned versus exact totals; never extraction |
-| PDF | version plus pages/encryption/title/author via optional `pdfinfo` |
+| ZIP, tar, gzip/tar.gz | bounded enumeration, encryption, unsafe paths, links/devices, honest scanned versus exact totals; never extraction |
+| PDF | version, pages/encryption/title/author, and bounded text-layer routing via optional `pdfinfo`/`pdftotext` |
 | TTF, OTF, WOFF, WOFF2 | family, style, weight, glyph count and variable axes where available |
 | ELF, PE, Mach-O, Java class | executable or bytecode format, architecture, bitness, endianness where applicable |
-| OOXML | DOCX/XLSX/PPTX identity only after package content types, root relationship, and main part agree |
+| OOXML | DOCX/DOCM/XLSX/XLSM/PPTX/PPTM identity, sheet/slide counts, macros, external relationships, and embedded objects after package evidence agrees |
+| Data/build envelopes | exact bounded signatures for Parquet, Arrow/Feather, ORC, Avro, NumPy, HDF5, and WebAssembly |
+| Indirection | exact Git LFS pointer identity, object ID, and declared target size |
 
 Unknown bytes remain unknown. An extension is evidence, not authority.
 
@@ -34,7 +37,7 @@ Unknown bytes remain unknown. An extension is evidence, not authority.
 
 Go 1.26.6 or newer is required for development and release builds. Earlier
 Go 1.26 patch releases contain standard-library vulnerabilities reachable from
-the file and path inspection boundaries. Version 0.1.0 supports Darwin and
+the file and path inspection boundaries. Version 0.3.2 supports Darwin and
 Linux, where descriptor inheritance and rooted file opening preserve the MCP
 authority boundary. The installed plugin launches its bundled native binary;
 it does not require Docker, a background service, or network access.
@@ -45,6 +48,9 @@ bin/finspect path/to/file
 bin/finspect path/to/file --quick --json
 bin/finspect path/to/archive.zip --deep
 bin/finspect path/to/file --sha256
+bin/finspect path/to/file --expect-sha256 HEX
+bin/finspect batch a.json b.parquet missing.bin --quick --json
+bin/finspect inventory path/to/workspace --max-depth 4 --json
 bin/finspect doctor
 ```
 
@@ -54,8 +60,9 @@ archive entry names. All modes are read-only. Exit codes: `0` ok, partial, or
 unsupported; `1` error result; `2` usage error; `3` corrupt file.
 
 The CLI accepts a deliberate human path, including an absolute path. The MCP
-surface is narrower: `file_inspect.path` must be relative to the exact
+surface is narrower: every path must be relative to the exact
 `UFI_WORKSPACE_ROOT` grant and every symbolic-link component is rejected.
+Inventory also skips symlink entries rather than following them.
 
 Development MCP server:
 
@@ -65,9 +72,10 @@ UFI_WORKSPACE_ROOT=/absolute/workspace go run ./cmd/finspect mcp
 
 The server speaks newline-delimited stdio MCP. It supports the stateless
 2026-07-28 `server/discover` and per-request metadata model, while preserving
-the legacy `initialize` flow through 2025-11-25. It exposes only
-`file_inspect`, publishes strict input and output schemas, and returns both
-concise text and structured content.
+the legacy `initialize` flow through 2025-11-25. It exposes exactly three
+read-only operations: `file_inspect`, `file_inspect_batch`, and
+`workspace_inventory`. Each publishes strict input/output schemas and returns
+both concise text and structured content.
 
 ## macOS app
 
@@ -94,7 +102,7 @@ still requires the separate signing and notarization workflow.
 ./scripts/build_plugin.sh
 UFI_SKILL_ROOT="${UFI_SKILL_ROOT:-$HOME/.codex/skills/.system}"
 python3 "$UFI_SKILL_ROOT/plugin-creator/scripts/validate_plugin.py" \
-  dist/plugin/file-vitals-0.1.0-$(go env GOOS)-$(go env GOARCH)
+  dist/plugin/file-vitals-0.3.2-$(go env GOOS)-$(go env GOARCH)
 codex plugin marketplace add dist/plugin
 codex plugin add file-vitals@file-vitals-local
 ```
@@ -126,7 +134,7 @@ source checkout; `finspect` and its MCP route remain independently available.
 
 ## Safety and truth model
 
-- One isolated worker owns the whole call. The parent enforces one deadline
+- One isolated worker owns the whole call—including a batch or inventory. The parent enforces one deadline
   from file-open and queue admission through final response, a 384 MiB
   aggregate worker-process-group RSS ceiling, bounded stdout/stderr, and
   worker-tree termination.
@@ -134,6 +142,9 @@ source checkout; `finspect` and its MCP route remain independently available.
   passed to the worker and external probes as an already-open descriptor.
 - Archives are only enumerated. Compressed scanning, header counts, names, and
   response bytes are capped.
+- Batch is capped at 16 explicit files and 192 KiB total response; inventory is
+  capped at 32 files, 8 levels, 256 directories, 4,096 directory entries, and
+  192 KiB total response.
 - Signature evidence wins over extensions. Conflicts remain visible.
 - Encoding without deterministic evidence is `probable` or `unknown`, never
   promoted to exact.
@@ -152,8 +163,10 @@ The exact limits and product boundary live in
 ```
 
 This runs formatting, dependency verification, vet, race-enabled tests, builds,
-JSON Schema checks, Skill/plugin validation, self-contained packaging, and real
-CLI/MCP probes including cancellation and post-cancellation recovery. The
+JSON Schema checks, a semantic-equivalence and Agent-call-economics comparison
+(including observed tool-catalog/schema bytes), Skill/plugin validation,
+self-contained packaging, and real CLI/MCP probes
+including cancellation and post-cancellation recovery. The
 GitHub Actions workflow repeats the native core, plugin packaging, and MCP
 runtime probes on both Ubuntu and macOS, and builds the macOS app on macOS.
 

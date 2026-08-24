@@ -202,7 +202,7 @@ func inspectPDF(ctx context.Context, file *os.File, result *Result) error {
 	if err != nil {
 		return err
 	}
-	info := &PDFInfo{Version: result.Identity.FormatVersion}
+	info := &PDFInfo{Version: result.Identity.FormatVersion, TextLayer: "unknown"}
 	for _, line := range strings.Split(string(stdout), "\n") {
 		key, value, ok := strings.Cut(line, ":")
 		if !ok {
@@ -224,5 +224,37 @@ func inspectPDF(ctx context.Context, file *os.File, result *Result) error {
 		}
 	}
 	result.PDF = info
+	if info.Encrypted != nil && *info.Encrypted {
+		addProvenance(result, "pdftotext", "", "skipped")
+		return nil
+	}
+	if info.PageCount <= 0 {
+		addProvenance(result, "pdftotext", "", "skipped")
+		return nil
+	}
+	pages := info.PageCount
+	if pages > MaxPDFTextProbePages {
+		pages = MaxPDFTextProbePages
+	}
+	text, _, textErr := runProbe(ctx, file, "pdftotext", "-f", "1", "-l", strconv.Itoa(pages), "-enc", "UTF-8", "{file}", "-")
+	switch {
+	case errors.Is(textErr, errProbeUnavailable):
+		makePartial(result)
+		addProvenance(result, "pdftotext", "", "unavailable")
+		addDiagnostic(result, "PDF_TEXT_LAYER_PROBE_UNAVAILABLE", "warning", "PDF text-layer routing could not be determined because pdftotext is unavailable.")
+	case textErr != nil:
+		makePartial(result)
+		addProvenance(result, "pdftotext", "", "failed")
+		addDiagnostic(result, "PDF_TEXT_LAYER_PROBE_FAILED", "warning", "PDF text-layer routing could not be determined by the optional probe.")
+	default:
+		info.TextPagesSampled = pages
+		info.TextLayerComplete = pages == info.PageCount
+		if strings.TrimSpace(string(text)) != "" {
+			info.TextLayer = "present"
+		} else if info.TextLayerComplete {
+			info.TextLayer = "absent"
+		}
+		addProvenance(result, "pdftotext", "", "used")
+	}
 	return nil
 }

@@ -59,7 +59,9 @@ app_binary="${app_macos}/${process_name}"
 mkdir -p "${app_macos}" "${app_resources}/runtime" "${app_resources}/licenses/third_party_licenses"
 cp "${swift_binary}" "${app_binary}"
 cp "${package_dir}/Resources/Info.plist" "${app_contents}/Info.plist"
-go build -trimpath -o "${app_resources}/runtime/finspect" ./cmd/finspect
+# Match the native plugin build so every shipped adapter carries the exact same
+# stripped Go engine, not merely another build from the same source tree.
+go build -trimpath -ldflags="-s -w" -o "${app_resources}/runtime/finspect" ./cmd/finspect
 cp LICENSE NOTICE THIRD_PARTY_NOTICES.md "${app_resources}/licenses/"
 cp third_party_licenses/* "${app_resources}/licenses/third_party_licenses/"
 chmod +x "${app_binary}" "${app_resources}/runtime/finspect"

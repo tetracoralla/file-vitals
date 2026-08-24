@@ -29,6 +29,9 @@ const (
 	// Bounded concurrency mirrors the MCP server's admission policy so one
 	// slow storage-backed inspection cannot block every later request.
 	maxConcurrentInspections = 4
+	// This bounds executing plus queued requests. A worker semaphore alone does
+	// not bound the number of goroutines created by a fast JSONL producer.
+	maxAdmittedInspections = 16
 )
 
 var runInspection = supervisor.Run
@@ -65,10 +68,33 @@ type canonicalResult struct {
 	Integrity   inspector.Integrity     `json:"integrity"`
 	Structured  *inspector.Structured   `json:"structured,omitempty"`
 	Image       *inspector.ImageInfo    `json:"image,omitempty"`
-	Archive     *inspector.ArchiveInfo  `json:"archive,omitempty"`
+	Archive     *canonicalArchive       `json:"archive,omitempty"`
 	Diagnostics []inspector.Diagnostic  `json:"diagnostics"`
 	Provenance  []inspector.Provenance  `json:"provenance"`
 	Limits      inspector.AppliedLimits `json:"limits"`
+}
+
+// The portable file.inspect@0.1.0 contract is intentionally narrower than the
+// product result. Project it explicitly so new product-only package blockers
+// cannot leak through additional properties and silently mutate the Capability.
+type canonicalArchive struct {
+	Format                   string                  `json:"format"`
+	EntryCount               *int                    `json:"entry_count,omitempty"`
+	EntriesScanned           int                     `json:"entries_scanned"`
+	TotalUncompressedBytes   *int64                  `json:"total_uncompressed_bytes,omitempty"`
+	UncompressedBytesScanned int64                   `json:"uncompressed_bytes_scanned"`
+	Encrypted                bool                    `json:"encrypted"`
+	Entries                  []canonicalArchiveEntry `json:"entries,omitempty"`
+	EntriesTruncated         bool                    `json:"entries_truncated"`
+	ScanTruncated            bool                    `json:"scan_truncated"`
+}
+
+type canonicalArchiveEntry struct {
+	Name            string `json:"name"`
+	SizeBytes       int64  `json:"size_bytes"`
+	CompressedBytes *int64 `json:"compressed_bytes,omitempty"`
+	Directory       bool   `json:"directory"`
+	Encrypted       bool   `json:"encrypted"`
 }
 
 func main() {
@@ -87,6 +113,7 @@ func serve(input io.Reader, output io.Writer) error {
 	var writeMu sync.Mutex
 	var wg sync.WaitGroup
 	slots := make(chan struct{}, maxConcurrentInspections)
+	admission := make(chan struct{}, maxAdmittedInspections)
 	eof := false
 	for !eof {
 		line, err := linereader.ReadRequestLine(reader, maxRequestLineBytes)
@@ -108,9 +135,25 @@ func serve(input io.Reader, output io.Writer) error {
 		if len(bytes.TrimSpace(line)) == 0 {
 			continue
 		}
+		select {
+		case admission <- struct{}{}:
+		default:
+			var identity struct {
+				ID string `json:"id"`
+			}
+			_ = json.Unmarshal(line, &identity)
+			if len(identity.ID) > 128 {
+				identity.ID = ""
+			}
+			writeResponse(&writeMu, encoder, failure(identity.ID, "LIMIT_EXCEEDED", "Provider request capacity is full."))
+			continue
+		}
 		wg.Add(1)
 		go func(line []byte) {
-			defer wg.Done()
+			defer func() {
+				<-admission
+				wg.Done()
+			}()
 			// Responses complete in request-completion order, not arrival
 			// order; clients correlate by the required envelope id.
 			writeResponse(&writeMu, encoder, handleRequest(slots, line))
@@ -187,13 +230,31 @@ func handleRequestWithTimeout(slots chan struct{}, line []byte, timeout time.Dur
 	canonical := canonicalResult{
 		Status: result.Status, File: result.File, Identity: result.Identity,
 		Traits: result.Traits, Integrity: result.Integrity, Structured: result.Structured,
-		Image: result.Image, Archive: result.Archive, Diagnostics: result.Diagnostics,
+		Image: result.Image, Archive: projectArchive(result.Archive), Diagnostics: result.Diagnostics,
 		Provenance: result.Provenance, Limits: result.Limits,
 	}
 	if err := capabilities.ValidateOutput(canonical); err != nil {
 		return failure(request.ID, "INSPECTION_FAILED", "The provider result violates the portable output contract.")
 	}
 	return responseEnvelope{ID: request.ID, OK: true, Result: canonical}
+}
+
+func projectArchive(source *inspector.ArchiveInfo) *canonicalArchive {
+	if source == nil {
+		return nil
+	}
+	projected := &canonicalArchive{
+		Format: source.Format, EntryCount: source.EntryCount, EntriesScanned: source.EntriesScanned,
+		TotalUncompressedBytes: source.TotalUncompressedBytes, UncompressedBytesScanned: source.UncompressedBytesScanned,
+		Encrypted: source.Encrypted, Entries: []canonicalArchiveEntry{}, EntriesTruncated: source.EntriesTruncated, ScanTruncated: source.ScanTruncated,
+	}
+	for _, entry := range source.Entries {
+		projected.Entries = append(projected.Entries, canonicalArchiveEntry{
+			Name: entry.Name, SizeBytes: entry.SizeBytes, CompressedBytes: entry.CompressedBytes,
+			Directory: entry.Directory, Encrypted: entry.Encrypted,
+		})
+	}
+	return projected
 }
 
 func decodeStrict(data []byte, target any) error {

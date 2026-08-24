@@ -6,6 +6,7 @@ struct InspectionResult: Decodable, Sendable {
     let file: InspectedFile
     let identity: FileIdentity
     let traits: [String]
+    let constraints: [String]
     let integrity: FileIntegrity
     let text: TextFacts?
     let structured: StructuredFacts?
@@ -15,6 +16,9 @@ struct InspectionResult: Decodable, Sendable {
     let audioStreams: [AudioStreamFacts]?
     let archive: ArchiveFacts?
     let pdf: PDFFacts?
+    let ooxml: OOXMLFacts?
+    let svg: SVGFacts?
+    let indirection: IndirectionFacts?
     let font: FontFacts?
     let binary: BinaryFacts?
     let diagnostics: [InspectionDiagnostic]
@@ -42,6 +46,8 @@ struct FileIntegrity: Decodable, Sendable {
     let readable: Bool
     let parseable: Bool?
     let sha256: String?
+    let expectedSha256: String?
+    let sha256Matches: Bool?
 }
 
 struct TextFacts: Decodable, Sendable {
@@ -112,6 +118,7 @@ struct ArchiveFacts: Decodable, Sendable {
     let totalUncompressedBytes: Int64?
     let uncompressedBytesScanned: Int64
     let encrypted: Bool
+    let pathFacts: ArchivePathFacts
     let entries: [ArchiveEntryFacts]?
     let entriesTruncated: Bool
     let scanTruncated: Bool
@@ -123,6 +130,15 @@ struct ArchiveEntryFacts: Decodable, Sendable {
     let compressedBytes: Int64?
     let directory: Bool
     let encrypted: Bool
+    let kind: String
+}
+
+struct ArchivePathFacts: Decodable, Sendable {
+    let absolutePaths: Int
+    let parentPaths: Int
+    let linkEntries: Int
+    let deviceEntries: Int
+    let inspectionComplete: Bool
 }
 
 struct PDFFacts: Decodable, Sendable {
@@ -131,6 +147,31 @@ struct PDFFacts: Decodable, Sendable {
     let encrypted: Bool?
     let title: String?
     let author: String?
+    let textLayer: String
+    let textPagesSampled: Int
+    let textLayerComplete: Bool
+}
+
+struct OOXMLFacts: Decodable, Sendable {
+    let kind: String
+    let sheetCount: Int?
+    let slideCount: Int?
+    let macroEnabled: Bool
+    let externalRelationships: Int
+    let embeddedObjects: Int
+    let inspectionComplete: Bool
+}
+
+struct SVGFacts: Decodable, Sendable {
+    let scriptCount: Int
+    let externalHrefCount: Int
+    let inspectionComplete: Bool
+}
+
+struct IndirectionFacts: Decodable, Sendable {
+    let kind: String
+    let oid: String
+    let declaredSize: Int64
 }
 
 struct FontFacts: Decodable, Sendable {

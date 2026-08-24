@@ -242,6 +242,43 @@ func TestCapabilityConcurrencyIsBounded(t *testing.T) {
 	}
 }
 
+func TestCapabilityAdmissionQueueIsBounded(t *testing.T) {
+	t.Setenv("OPENADAM_PROVIDER_ROOT", repositoryRoot(t))
+	original := runInspection
+	runInspection = func(_ context.Context, _ string, _ *os.File, request supervisor.Request) inspector.Result {
+		time.Sleep(75 * time.Millisecond)
+		return inspector.PublicError(request.Name, request.Mode, request.TimeoutMS, "E_WORKER_FAILED", "intentional admission fixture")
+	}
+	t.Cleanup(func() { runInspection = original })
+
+	var lines []string
+	for index := 0; index < maxAdmittedInspections+8; index++ {
+		lines = append(lines, fmt.Sprintf(`{"id":"flood-%d","operationId":"inspect","input":{"path":"capabilities/fixtures/users.json","mode":"quick"}}`, index))
+	}
+	var output bytes.Buffer
+	if err := serve(strings.NewReader(strings.Join(lines, "\n")+"\n"), &output); err != nil {
+		t.Fatal(err)
+	}
+	overloaded := 0
+	responses := 0
+	for _, line := range strings.Split(strings.TrimSpace(output.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		responses++
+		var response responseEnvelope
+		if err := json.Unmarshal([]byte(line), &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Error != nil && response.Error.Code == "LIMIT_EXCEEDED" && response.Error.Message == "Provider request capacity is full." {
+			overloaded++
+		}
+	}
+	if responses != len(lines) || overloaded == 0 {
+		t.Fatalf("capability flood was not bounded: responses=%d overloads=%d", responses, overloaded)
+	}
+}
+
 func TestCapabilityQueueAdmissionSharesDeadline(t *testing.T) {
 	slots := make(chan struct{}, maxConcurrentInspections)
 	for index := 0; index < cap(slots); index++ {

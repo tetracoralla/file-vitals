@@ -16,11 +16,12 @@ import (
 )
 
 type inspectArgs struct {
-	path    string
-	mode    inspector.Mode
-	hash    inspector.HashMode
-	json    bool
-	timeout time.Duration
+	path           string
+	mode           inspector.Mode
+	hash           inspector.HashMode
+	expectedSHA256 string
+	json           bool
+	timeout        time.Duration
 }
 
 var errCLINotRegular = errors.New("CLI path is not a regular file")
@@ -40,7 +41,7 @@ func parseInspectArgs(args []string) (inspectArgs, error) {
 			parsed.mode = inspector.ModeDeep
 		case arg == "--sha256":
 			parsed.hash = inspector.HashSHA256
-		case arg == "--mode" || arg == "--hash" || arg == "--timeout":
+		case arg == "--mode" || arg == "--hash" || arg == "--timeout" || arg == "--expect-sha256":
 			if index+1 >= len(args) {
 				return parsed, fmt.Errorf("%s requires a value", arg)
 			}
@@ -57,6 +58,8 @@ func parseInspectArgs(args []string) (inspectArgs, error) {
 					return parsed, errors.New("timeout must be a duration such as 5s")
 				}
 				parsed.timeout = duration
+			case "--expect-sha256":
+				parsed.expectedSHA256 = strings.ToLower(value)
 			}
 		case strings.HasPrefix(arg, "--mode="):
 			parsed.mode = inspector.Mode(strings.TrimPrefix(arg, "--mode="))
@@ -68,6 +71,8 @@ func parseInspectArgs(args []string) (inspectArgs, error) {
 				return parsed, errors.New("timeout must be a duration such as 5s")
 			}
 			parsed.timeout = duration
+		case strings.HasPrefix(arg, "--expect-sha256="):
+			parsed.expectedSHA256 = strings.ToLower(strings.TrimPrefix(arg, "--expect-sha256="))
 		case strings.HasPrefix(arg, "-"):
 			return parsed, fmt.Errorf("unknown option %s", arg)
 		default:
@@ -85,6 +90,9 @@ func parseInspectArgs(args []string) (inspectArgs, error) {
 	}
 	if parsed.hash != inspector.HashNone && parsed.hash != inspector.HashSHA256 {
 		return parsed, errors.New("hash must be none or sha256")
+	}
+	if parsed.expectedSHA256 != "" && !validSHA256(parsed.expectedSHA256) {
+		return parsed, errors.New("expected SHA-256 must contain exactly 64 hexadecimal characters")
 	}
 	if parsed.timeout < 100*time.Millisecond || parsed.timeout > 60*time.Second {
 		return parsed, errors.New("timeout must be between 100ms and 60s")
@@ -145,8 +153,21 @@ func runInspectContext(parent context.Context, args []string, stdout, stderr io.
 		result := inspector.PublicError(parsed.path, parsed.mode, parsed.timeout.Milliseconds(), "E_INTERNAL", "Unable to locate the running executable.")
 		return emitResult(parsed, result, stdout)
 	}
-	result := supervisor.Run(ctx, executable, file, supervisor.Request{Name: parsed.path, Mode: parsed.mode, Hash: parsed.hash, TimeoutMS: parsed.timeout.Milliseconds()})
+	result := supervisor.Run(ctx, executable, file, supervisor.Request{Name: parsed.path, Mode: parsed.mode, Hash: parsed.hash, ExpectedSHA256: parsed.expectedSHA256, TimeoutMS: parsed.timeout.Milliseconds()})
 	return emitResult(parsed, result, stdout)
+}
+
+func validSHA256(value string) bool {
+	if len(value) != 64 {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		if value[index] >= '0' && value[index] <= '9' || value[index] >= 'a' && value[index] <= 'f' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func openCLIFile(ctx context.Context, path string) (*os.File, error) {

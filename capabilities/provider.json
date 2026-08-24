@@ -3,7 +3,7 @@
   "provider": {
     "id": "io.github.tetracoralla.file-vitals",
     "name": "File Vitals",
-    "version": "0.1.0",
+    "version": "0.3.2",
     "homepage": "https://github.com/tetracoralla/file-vitals"
   },
   "implementations": [
@@ -36,8 +36,8 @@
             "output": "sha256:97a6d3439d3a1ad0f79bf22bb96c58088cf6618290e26a43381b5a420897ebe1"
           },
           "transportSchemaDigests": {
-            "input": "sha256:6ba9d13ca78064bdced0dc1cc22698de035b679851cddacd740889ea16671be3",
-            "output": "sha256:a97fbf16ac08ca757924942978b03117061f8ddad4f31e6329009dfabcf55863"
+            "input": "sha256:c7fd2182ca05ac8addb4ee0f06cd1f084d12f80efd51a20f59338f3773e2bd30",
+            "output": "sha256:fe93a7bb68eaf930c3254a338ded53728791eb58de5d63151f947388fa1b239b"
           },
           "annotations": {
             "readOnlyHint": true,

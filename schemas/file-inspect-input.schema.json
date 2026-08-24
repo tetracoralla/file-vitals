@@ -23,6 +23,11 @@
       "enum": ["none", "sha256"],
       "default": "none",
       "description": "Optional content digest. SHA-256 is refused above the fixed input budget."
+    },
+    "expected_sha256": {
+      "type": "string",
+      "pattern": "^[A-Fa-f0-9]{64}$",
+      "description": "Optional expected SHA-256. Supplying it computes the bounded digest and returns an explicit match predicate."
     }
   }
 }

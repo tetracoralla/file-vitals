@@ -66,24 +66,9 @@ func openRelative(rootPath, requested string) (*os.File, error) {
 	if rootPath == "" {
 		return nil, &Error{Code: "E_WORKSPACE_REQUIRED", Message: "The MCP host must grant a workspace with UFI_WORKSPACE_ROOT."}
 	}
-	if requested == "" || len(requested) > 4096 || !utf8.ValidString(requested) || strings.IndexByte(requested, 0) >= 0 {
-		return nil, &Error{Code: "E_INVALID_PATH", Message: "Path must be a non-empty UTF-8 relative file path."}
-	}
-	if filepath.IsAbs(requested) || filepath.VolumeName(requested) != "" {
-		return nil, &Error{Code: "E_PATH_ABSOLUTE", Message: "MCP file paths must be relative to the granted workspace."}
-	}
-	lower := strings.ToLower(strings.TrimSpace(requested))
-	if strings.Contains(lower, "://") || strings.HasPrefix(lower, "file:") {
-		return nil, &Error{Code: "E_PATH_URI", Message: "URI-like file coordinates are not accepted."}
-	}
-	for _, segment := range strings.FieldsFunc(requested, func(r rune) bool { return r == '/' || r == '\\' }) {
-		if segment == ".." {
-			return nil, &Error{Code: "E_PATH_TRAVERSAL", Message: "Parent traversal is outside the granted workspace."}
-		}
-	}
-	clean := filepath.Clean(requested)
-	if clean == "." || clean == "" || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return nil, &Error{Code: "E_INVALID_PATH", Message: "Path must identify one file inside the granted workspace."}
+	clean, err := validateRelativePath(requested, false)
+	if err != nil {
+		return nil, err
 	}
 
 	root, err := os.OpenRoot(rootPath)
@@ -131,6 +116,53 @@ func openRelative(rootPath, requested string) (*os.File, error) {
 		return nil, &Error{Code: "E_PATH_CHANGED", Message: "The requested file changed during authority validation."}
 	}
 	return file, nil
+}
+
+func validateRelativePath(requested string, allowRoot bool) (string, error) {
+	if requested == "" || len(requested) > 4096 || !utf8.ValidString(requested) || strings.IndexByte(requested, 0) >= 0 {
+		return "", &Error{Code: "E_INVALID_PATH", Message: "Path must be a non-empty UTF-8 relative file path."}
+	}
+	if filepath.IsAbs(requested) || filepath.VolumeName(requested) != "" {
+		return "", &Error{Code: "E_PATH_ABSOLUTE", Message: "MCP file paths must be relative to the granted workspace."}
+	}
+	lower := strings.ToLower(strings.TrimSpace(requested))
+	if looksLikeURI(lower) {
+		return "", &Error{Code: "E_PATH_URI", Message: "URI-like file coordinates are not accepted."}
+	}
+	for _, segment := range strings.FieldsFunc(requested, func(r rune) bool { return r == '/' || r == '\\' }) {
+		if segment == ".." {
+			return "", &Error{Code: "E_PATH_TRAVERSAL", Message: "Parent traversal is outside the granted workspace."}
+		}
+	}
+	clean := filepath.Clean(requested)
+	if clean == "" || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) || clean == "." && !allowRoot {
+		return "", &Error{Code: "E_INVALID_PATH", Message: "Path must identify an allowed location inside the granted workspace."}
+	}
+	return clean, nil
+}
+
+func looksLikeURI(value string) bool {
+	colon := strings.IndexByte(value, ':')
+	if colon <= 0 {
+		return false
+	}
+	// RFC 3986 schemes begin with a letter and then contain only letters,
+	// digits, plus, hyphen, or dot. Reject the whole family (data:, urn:,
+	// https:foo, file:, and scheme://), not only the forms seen in old tests.
+	for index := 0; index < colon; index++ {
+		character := value[index]
+		if index == 0 {
+			if character < 'a' || character > 'z' {
+				return false
+			}
+			continue
+		}
+		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '+' || character == '-' || character == '.' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func Code(err error) (string, string) {

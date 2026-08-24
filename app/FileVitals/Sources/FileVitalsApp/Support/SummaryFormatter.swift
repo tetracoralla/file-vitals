@@ -27,6 +27,9 @@ enum SummaryFormatter {
         if let digest = result.integrity.sha256, !digest.isEmpty {
             lines.append("SHA-256: \(digest)")
         }
+        if !result.constraints.isEmpty {
+            lines.append("Action blockers: " + result.constraints.map(constraintLabel).joined(separator: ", "))
+        }
         for diagnostic in result.diagnostics {
             lines.append("\(diagnostic.severity.uppercased()) \(diagnostic.code): \(diagnostic.message)")
         }
@@ -39,5 +42,20 @@ enum SummaryFormatter {
     private static func optionalSuffix(_ value: String?) -> String {
         guard let value, !value.isEmpty else { return "" }
         return " · \(value)"
+    }
+
+    static func constraintLabel(_ value: String) -> String {
+        switch value {
+        case "active_content": "contains active content"
+        case "archive_devices": "archive contains device or pipe entries"
+        case "archive_links": "archive contains link entries"
+        case "archive_unsafe_paths": "archive contains unsafe paths"
+        case "embedded_objects": "contains embedded objects"
+        case "encrypted": "content is encrypted"
+        case "external_references": "contains external references"
+        case "indirect_content": "file is an indirection pointer"
+        case "integrity_mismatch": "SHA-256 does not match the expected digest"
+        default: "action is constrained"
+        }
     }
 }

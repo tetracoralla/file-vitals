@@ -265,7 +265,7 @@ func TestDeepArchiveEntryReturnLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(encoded) > MaxResponseBytes {
+	if len(encoded)+1 > MaxResponseBytes {
 		t.Fatalf("response exceeded limit: %d", len(encoded))
 	}
 }

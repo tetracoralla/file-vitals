@@ -84,6 +84,12 @@ func probeResultSchema() doctorProbe {
 	if err := schemas.ValidateInspectionResult(inspector.PublicError("doctor.txt", inspector.ModeQuick, 5000, "E_DOCTOR", "schema self-check")); err != nil {
 		return doctorProbe{Name: "result-schema", Required: true}
 	}
+	if err := schemas.ValidateBatchResult(inspector.PublicBatchError(5000, "E_DOCTOR", "schema self-check")); err != nil {
+		return doctorProbe{Name: "result-schema", Required: true}
+	}
+	if err := schemas.ValidateInventoryResult(inspector.PublicInventoryError(".", 4, 5000, "E_DOCTOR", "schema self-check")); err != nil {
+		return doctorProbe{Name: "result-schema", Required: true}
+	}
 	return doctorProbe{Name: "result-schema", Available: true, Required: true}
 }
 
@@ -160,7 +166,7 @@ func runSchema(args []string, stdout, stderr io.Writer) int {
 	if len(args) == 1 {
 		which = args[0]
 	} else if len(args) > 1 {
-		fmt.Fprintln(stderr, "schema accepts input or output")
+		fmt.Fprintln(stderr, "schema accepts input, output, batch-input, batch-output, inventory-input, or inventory-output")
 		return 2
 	}
 	var data []byte
@@ -169,8 +175,16 @@ func runSchema(args []string, stdout, stderr io.Writer) int {
 		data = schemas.FileInspectInput
 	case "output", "result":
 		data = schemas.InspectionResult
+	case "batch-input":
+		data = schemas.FileInspectBatchInput
+	case "batch-output":
+		data = schemas.FileInspectBatchResult
+	case "inventory-input":
+		data = schemas.WorkspaceInventoryInput
+	case "inventory-output":
+		data = schemas.WorkspaceInventoryResult
 	default:
-		fmt.Fprintln(stderr, "schema accepts input or output")
+		fmt.Fprintln(stderr, "schema accepts input, output, batch-input, batch-output, inventory-input, or inventory-output")
 		return 2
 	}
 	var value any

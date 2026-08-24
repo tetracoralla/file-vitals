@@ -54,7 +54,7 @@ jobs:
           ./scripts/check_build_path_guard.sh
           ./scripts/check_app_build_path_guard.sh
           ./scripts/build_plugin.sh --replace
-          bundle="$PWD/dist/plugin/file-vitals-0.1.0-$(go env GOOS)-$(go env GOARCH)"
+          bundle="$PWD/dist/plugin/file-vitals-0.3.2-$(go env GOOS)-$(go env GOARCH)"
           python3 scripts/check_release_legal.py "$bundle"
           python3 scripts/probe_plugin.py "$bundle"
           (cd dist/plugin && shasum -a 256 -c "$(basename "$bundle").tar.gz.sha256")
@@ -65,3 +65,5 @@ jobs:
         run: |
           swift test --package-path app/FileVitals
           ./script/build_and_run.sh --build
+          cmp "dist/plugin/file-vitals-0.3.2-$(go env GOOS)-$(go env GOARCH)/runtime/finspect" \
+            "dist/File Vitals.app/Contents/Resources/runtime/finspect"

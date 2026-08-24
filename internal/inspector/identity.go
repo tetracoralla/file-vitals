@@ -5,6 +5,8 @@ import (
 	"debug/elf"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -20,6 +22,18 @@ type signature struct {
 
 func detectIdentity(header []byte, size int64, name string) Identity {
 	sig := sniffSignature(header, size)
+	return identityFromSignature(sig, name)
+}
+
+func detectIdentityFromFile(file *os.File, header []byte, size int64, name string) Identity {
+	sig := sniffSignature(header, size)
+	if exact := sniffFooterSignature(file, header, size); exact.mediaType != "" {
+		sig = exact
+	}
+	return identityFromSignature(sig, name)
+}
+
+func identityFromSignature(sig signature, name string) Identity {
 	identity := Identity{
 		Kind: sig.kind, MediaType: sig.mediaType, Format: sig.format,
 		FormatVersion: sig.version, Confidence: sig.confidence,
@@ -112,6 +126,21 @@ func sniffSignature(data []byte, size int64) signature {
 		return signature{"font/ttf", "TrueType", "font", "", "exact"}
 	case prefix([]byte("SQLite format 3\x00")):
 		return signature{"application/vnd.sqlite3", "SQLite 3", "data", "3", "exact"}
+	case prefix([]byte("Obj\x01")):
+		return signature{"application/avro", "Avro object container", "data", "", "exact"}
+	case prefix([]byte("ORC")):
+		return signature{"application/vnd.apache.orc", "Apache ORC", "data", "", "exact"}
+	case prefix([]byte("\x93NUMPY")):
+		version := ""
+		if len(data) >= 8 {
+			version = fmtVersion(data[6], data[7])
+		}
+		return signature{"application/x-npy", "NumPy array", "data", version, "exact"}
+	case hdf5Signature(data):
+		return signature{"application/x-hdf5", "HDF5", "data", "", "exact"}
+	case len(data) >= 8 && prefix([]byte("\x00asm")):
+		version := binary.LittleEndian.Uint32(data[4:8])
+		return signature{"application/wasm", "WebAssembly", "binary", fmt.Sprintf("%d", version), "exact"}
 	case len(data) >= 12 && string(data[4:8]) == "ftyp":
 		return sniffISOBMFF(data)
 	case prefix([]byte("\x1aE\xdf\xa3")):
@@ -137,6 +166,60 @@ func sniffSignature(data []byte, size int64) signature {
 		return signature{"text/plain", "Plain text", "text", "", "probable"}
 	}
 	return signature{}
+}
+
+func sniffFooterSignature(file *os.File, header []byte, size int64) signature {
+	if file == nil || size < 8 {
+		return signature{}
+	}
+	readTail := func(count int) []byte {
+		if int64(count) > size {
+			count = int(size)
+		}
+		data := make([]byte, count)
+		n, err := file.ReadAt(data, size-int64(count))
+		if err != nil && n == 0 {
+			return nil
+		}
+		return data[:n]
+	}
+	switch {
+	case len(header) >= 4 && bytes.Equal(header[:4], []byte("PAR1")):
+		tail := readTail(4)
+		if bytes.Equal(tail, []byte("PAR1")) {
+			return signature{"application/vnd.apache.parquet", "Apache Parquet", "data", "", "exact"}
+		}
+	case len(header) >= 6 && bytes.Equal(header[:6], []byte("ARROW1")):
+		tail := readTail(6)
+		if bytes.Equal(tail, []byte("ARROW1")) {
+			return signature{"application/vnd.apache.arrow.file", "Arrow IPC file", "data", "", "exact"}
+		}
+	case len(header) >= 4 && bytes.Equal(header[:4], []byte("FEA1")):
+		tail := readTail(4)
+		if bytes.Equal(tail, []byte("FEA1")) {
+			return signature{"application/vnd.apache.arrow.file", "Feather v1", "data", "1", "exact"}
+		}
+	}
+	return signature{}
+}
+
+func hdf5Signature(data []byte) bool {
+	magic := []byte("\x89HDF\r\n\x1a\n")
+	for offset := 0; offset+len(magic) <= len(data); {
+		if bytes.Equal(data[offset:offset+len(magic)], magic) {
+			return true
+		}
+		if offset == 0 {
+			offset = 512
+		} else {
+			offset *= 2
+		}
+	}
+	return false
+}
+
+func fmtVersion(major, minor byte) string {
+	return fmt.Sprintf("%d.%d", major, minor)
 }
 
 func looksLikeMP3Frame(data []byte) bool {
@@ -304,9 +387,9 @@ func kindForMediaType(mediaType string) string {
 		return "document"
 	case mediaType == "application/zip" || mediaType == "application/gzip" || strings.Contains(mediaType, "compressed") || strings.Contains(mediaType, "rar") || strings.Contains(mediaType, "tar"):
 		return "archive"
-	case mediaType == "application/json" || mediaType == "application/yaml" || mediaType == "application/toml" || mediaType == "application/xml" || mediaType == "application/x-ndjson" || mediaType == "application/vnd.sqlite3":
+	case mediaType == "application/json" || mediaType == "application/yaml" || mediaType == "application/toml" || mediaType == "application/xml" || mediaType == "application/x-ndjson" || mediaType == "application/vnd.sqlite3" || mediaType == "application/vnd.apache.parquet" || mediaType == "application/vnd.apache.arrow.file" || mediaType == "application/vnd.apache.orc" || mediaType == "application/avro" || mediaType == "application/x-npy" || mediaType == "application/x-hdf5":
 		return "data"
-	case strings.Contains(mediaType, "executable") || strings.Contains(mediaType, "mach") || strings.Contains(mediaType, "elf"):
+	case mediaType == "application/wasm" || strings.Contains(mediaType, "executable") || strings.Contains(mediaType, "mach") || strings.Contains(mediaType, "elf"):
 		return "binary"
 	default:
 		return "unknown"
@@ -318,6 +401,7 @@ var mediaTypeFormats = map[string]string{
 	"text/csv": "CSV", "text/tab-separated-values": "TSV", "text/markdown": "Markdown", "text/plain": "Plain text",
 	"image/png": "PNG", "image/jpeg": "JPEG", "image/gif": "GIF", "image/webp": "WebP", "image/svg+xml": "SVG",
 	"application/pdf": "PDF", "application/zip": "ZIP", "application/gzip": "Gzip",
+	"application/vnd.apache.parquet": "Apache Parquet", "application/vnd.apache.arrow.file": "Arrow IPC file", "application/vnd.apache.orc": "Apache ORC", "application/avro": "Avro object container", "application/x-npy": "NumPy array", "application/x-hdf5": "HDF5", "application/wasm": "WebAssembly",
 	"font/woff": "WOFF", "font/woff2": "WOFF2", "font/otf": "OpenType", "font/ttf": "TrueType",
 }
 

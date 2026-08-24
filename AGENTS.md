@@ -13,8 +13,11 @@ and probe evidence, and derives routing traits. It does not extract document
 content, infer dataset schemas, understand images, transform files, or execute
 anything found in a file.
 
-The public Agent operation is `file_inspect`. CLI, macOS app, MCP, and library
-adapters must use the same Go core and the same result model. The app invokes
+The public Agent operations are `file_inspect` for one exact path,
+`file_inspect_batch` for 1–16 explicit paths, and `workspace_inventory` for a
+bounded directory overview. Use exactly one operation for the current
+preflight. CLI, MCP, and library adapters must use the same Go core and result
+semantics. The app remains the minimal single-file human surface and invokes
 the bundled CLI engine; it must not reimplement inspection semantics in Swift.
 
 ## Authority and safety
@@ -27,6 +30,12 @@ the bundled CLI engine; it must not reimplement inspection semantics in Swift.
   probes must not reopen an Agent-controlled path.
 - One deadline, response limit, output limit, archive limit, and memory monitor
   apply to the complete call. A timeout or limit breach terminates the worker.
+- A batch or inventory is one call and one worker, not an adapter loop. Batch
+  preserves input order and per-item failures. Inventory scans at most 32 files,
+  8 levels, 256 directories, and 4,096 directory entries without following
+  links.
+- MCP and Capability adapters bound executing plus queued requests; a producer
+  cannot create an unbounded goroutine wait queue behind the worker semaphore.
 - Signature evidence outranks the filename extension. Inference and conflicts
   remain explicit; unknown is a valid result.
 - Every guard or parser correction requires a negative regression test.

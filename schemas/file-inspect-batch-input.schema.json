@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://file-vitals.local/schema/file-inspect-batch-input-1.0.json",
+  "title": "File Vitals batch input",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["paths"],
+  "properties": {
+    "paths": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1, "maxLength": 4096}
+    },
+    "mode": {"enum": ["quick", "standard", "deep"], "default": "standard"},
+    "hash": {"enum": ["none", "sha256"], "default": "none"}
+  }
+}
