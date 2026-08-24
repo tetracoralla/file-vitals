@@ -17,15 +17,15 @@ Swift XCTest before merging.
 
 Finish when the current branch is committed and pushed, the PR's required Linux
 and macOS checks plus current CodeQL are reviewed, the change is squash-merged
-through the repository's protection policy or an exact external blocker is
-reported, and installed/source/remote state is reconciled.
+through the repository's protection policy, and installed/source/remote state
+is reconciled.
 
 ## Current state
 
 - Public repository: `tetracoralla/file-vitals`, Apache-2.0; current account has
-  ADMIN permission. `main` requires strict Linux/macOS checks, one approving
-  review, resolved conversations, and linear history; only squash merge is
-  enabled.
+  ADMIN permission. Current GitHub API state requires strict Linux/macOS checks
+  and linear history; force pushes and deletion are disabled, and only squash
+  merge is enabled. No approving-review rule or repository ruleset is active.
 - Current branch: `codex/file-vitals-closure` based on local commit `ef1c967`;
   the remote `main` remains at `186d72f` and is not ahead.
 - Product/plugin version: 0.3.2. The version bump covers the canonical-value
@@ -81,6 +81,8 @@ without a new quality-equivalent paired experiment.
   mode/hash, copy, error, and recovery flows passed and were not redesigned.
 
 Final local diff review, packaged App smoke, dogfood-harness offline self-check,
-and the complete source/package gate are PASS. Next executable action: commit,
-push `codex/file-vitals-closure`, open a PR, and follow Linux, macOS Swift
-XCTest, and CodeQL through resolution.
+and the complete source/package gate are PASS. PR #1 ran Linux, macOS, and all
+configured CodeQL languages successfully on commit `23e2d41`; macOS executed
+seven XCTest cases with zero failures. Next executable action: publish this
+governance-fact correction, wait for the new head checks, then squash-merge PR
+#1 and reconcile local, installed, and remote state.
