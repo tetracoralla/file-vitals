@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "openadam.provider-manifest.v0.2",
+  "schemaVersion": "openadam.provider-manifest.v0.3",
   "provider": {
     "id": "io.github.tetracoralla.file-vitals",
     "name": "File Vitals",
@@ -10,6 +10,7 @@
     {
       "capabilityId": "org.openadam.file.inspect",
       "capabilityVersion": "0.1.0",
+      "profileDigest": "sha256:fbafacaf29c6e6988aaee11eae19ebe7e45a4ab41c1791ef27b070e754d77d37",
       "adapter": {
         "protocol": "openadam.capability-jsonl.v0.1",
         "command": "go",
