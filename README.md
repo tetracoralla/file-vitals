@@ -14,7 +14,7 @@ It is deliberately not a universal reader. It does not extract document text,
 infer dataset schemas, interpret image meaning, convert files, execute macros,
 or unpack archives.
 
-## What 0.3.2 inspects
+## What 0.3.3 inspects
 
 | Family | Built-in or optional facts |
 | --- | --- |
@@ -37,7 +37,7 @@ Unknown bytes remain unknown. An extension is evidence, not authority.
 
 Go 1.26.6 or newer is required for development and release builds. Earlier
 Go 1.26 patch releases contain standard-library vulnerabilities reachable from
-the file and path inspection boundaries. Version 0.3.2 supports Darwin and
+the file and path inspection boundaries. Version 0.3.3 supports Darwin and
 Linux, where descriptor inheritance and rooted file opening preserve the MCP
 authority boundary. The installed plugin launches its bundled native binary;
 it does not require Docker, a background service, or network access.
@@ -102,7 +102,7 @@ still requires the separate signing and notarization workflow.
 ./scripts/build_plugin.sh
 UFI_SKILL_ROOT="${UFI_SKILL_ROOT:-$HOME/.codex/skills/.system}"
 python3 "$UFI_SKILL_ROOT/plugin-creator/scripts/validate_plugin.py" \
-  dist/plugin/file-vitals-0.3.2-$(go env GOOS)-$(go env GOARCH)
+  dist/plugin/file-vitals-0.3.3-$(go env GOOS)-$(go env GOARCH)
 codex plugin marketplace add dist/plugin
 codex plugin add file-vitals@file-vitals-local
 ```
@@ -122,7 +122,8 @@ the portable Capability output. `OPENADAM_CAPABILITY_WORKSPACE_ROOT` may grant
 an explicit conformance workspace; otherwise the conformance runner's provider
 root is used.
 
-The v0.2 Provider Manifest declares the canonical `inspect` adapter target
+The v0.3 Provider Manifest pins the complete resolved Profile digest and
+declares the canonical `inspect` adapter target
 separately from the public `file_inspect` MCP target. Its executable transport
 schema probe reads the live embedded MCP schemas, so canonical adapter
 conformance and live transport conformance remain two independent results.

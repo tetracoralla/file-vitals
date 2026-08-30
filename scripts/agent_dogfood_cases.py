@@ -6,7 +6,7 @@ TASKS = (
         "Before changing any code, report deterministic preflight facts for these eight explicit files, "
         "preserving input order: go.mod, README.md, schemas/file-inspect-input.schema.json, "
         "schemas/inspection-result.schema.json, internal/inspector/types.go, app/FileVitals/Package.swift, "
-        "LICENSE, dist/plugin/file-vitals-0.3.2-darwin-arm64.tar.gz. For each, give status, size in bytes, "
+        "LICENSE, dist/plugin/file-vitals-0.3.3-darwin-arm64.tar.gz. For each, give status, size in bytes, "
         "kind, media type, and format. Do not modify anything. Keep the final answer concise.",
     ),
     (
@@ -55,7 +55,7 @@ TASKS = (
     ),
     (
         "archive-032",
-        "Before extracting dist/plugin/file-vitals-0.3.2-darwin-arm64.tar.gz, report its verified identity, "
+        "Before extracting dist/plugin/file-vitals-0.3.3-darwin-arm64.tar.gz, report its verified identity, "
         "archive format, parseability, entry count, truncation state, and structural action blockers: "
         "absolute paths, parent traversal paths, links, device entries, encryption, and whether inspection "
         "was complete. Do not extract or modify anything. Keep the final answer concise.",
@@ -73,7 +73,7 @@ REFERENCE_SPECS = {
             "internal/inspector/types.go",
             "app/FileVitals/Package.swift",
             "LICENSE",
-            "dist/plugin/file-vitals-0.3.2-darwin-arm64.tar.gz",
+            "dist/plugin/file-vitals-0.3.3-darwin-arm64.tar.gz",
         ],
     },
     "batch-b": {
@@ -107,6 +107,6 @@ REFERENCE_SPECS = {
     },
     "archive-032": {
         "operation": "single",
-        "path": "dist/plugin/file-vitals-0.3.2-darwin-arm64.tar.gz",
+        "path": "dist/plugin/file-vitals-0.3.3-darwin-arm64.tar.gz",
     },
 }
