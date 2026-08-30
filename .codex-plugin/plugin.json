@@ -1,6 +1,6 @@
 {
   "name": "file-vitals",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Bounded deterministic file preflight, batch inspection, and workspace inventory for Agents",
   "author": {
     "name": "openAdam"

@@ -29,7 +29,7 @@ def build_dogfood_workspace(destination: Path) -> None:
         "app/FileVitals/Package.swift",
         "app/FileVitals/Resources/Info.plist",
         "dist/plugin/file-vitals-0.3.0-darwin-arm64.tar.gz",
-        "dist/plugin/file-vitals-0.3.2-darwin-arm64.tar.gz",
+        "dist/plugin/file-vitals-0.3.3-darwin-arm64.tar.gz",
     )
     for relative in files:
         target = destination / relative
