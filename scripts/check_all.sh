@@ -29,6 +29,7 @@ fi
 go mod verify
 go vet ./...
 go test -race ./...
+python3 -m unittest discover -s scripts -p 'test_release_*.py'
 ./scripts/check_vulnerabilities.sh
 mkdir -p bin
 go build -trimpath -o bin/finspect ./cmd/finspect
@@ -43,7 +44,17 @@ python3 "${plugin_validator}" "${repo_root}"
 ./scripts/check_app_build_path_guard.sh
 ./scripts/build_plugin.sh --replace
 bundle="${repo_root}/dist/plugin/file-vitals-0.3.3-$(go env GOOS)-$(go env GOARCH)"
+first_archive_digest="$(shasum -a 256 "${bundle}.tar.gz" | awk '{print $1}')"
+TZ=UTC ./scripts/build_plugin.sh --replace >/dev/null
+second_archive_digest="$(shasum -a 256 "${bundle}.tar.gz" | awk '{print $1}')"
+if [[ "${first_archive_digest}" != "${second_archive_digest}" ]]; then
+  echo "File Vitals release archive is not reproducible from unchanged source" >&2
+  exit 1
+fi
+echo "release archive reproducibility for current toolchain and target: ok"
 python3 scripts/check_release_legal.py "${bundle}"
+python3 scripts/render_release_provider_manifest.py --check \
+  capabilities/provider.json "${bundle}/capabilities/provider.json"
 python3 "${plugin_validator}" "${bundle}"
 python3 scripts/probe_plugin.py "${bundle}"
 (cd "${repo_root}/dist/plugin" && shasum -a 256 -c "$(basename "${bundle}").tar.gz.sha256")

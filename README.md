@@ -109,7 +109,9 @@ codex plugin add file-vitals@file-vitals-local
 
 The bundle contains the platform binary, Skill, schemas, documentation,
 project and third-party license notices, a local marketplace, a `.tar.gz`, and
-a SHA-256 checksum.
+a SHA-256 checksum. The archive contains only sorted regular files with
+normalized metadata, and `check_all.sh` rebuilds it twice to require identical
+bytes from unchanged source.
 Use `--replace` only when intentionally replacing the same generated version.
 
 ## Portable Capability provider
@@ -128,10 +130,16 @@ separately from the public `file_inspect` MCP target. Its executable transport
 schema probe reads the live embedded MCP schemas, so canonical adapter
 conformance and live transport conformance remain two independent results.
 
-Release bundles also contain the standalone
-`runtime/file-vitals-capability` executable and the Capability manifest
-and schemas. A Procedure may invoke that provider boundary without the Go
-source checkout; `finspect` and its MCP route remain independently available.
+Release bundles also contain standalone `runtime/file-vitals-capability` and
+`runtime/file-vitals-transport-schema-probe` executables. Their packaged
+Provider Manifest points only to those bundled executables; it does not retain
+the source checkout's `go run` launch commands. A Procedure may therefore
+invoke the provider and run its live transport-schema probe without the Go
+source checkout. Canonical conformance also needs the standard's suite and
+its input fixtures (including `capabilities/fixtures/users.json`); those test
+inputs are not shipped in the runtime bundle. `adapterBindings[].target` is
+a semantic operation identifier, not an executable filesystem path.
+`finspect` and its MCP route remain independently available.
 
 ## Safety and truth model
 

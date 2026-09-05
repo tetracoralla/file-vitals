@@ -61,3 +61,8 @@ sequences against the built binary.
     data signatures, OOXML macro/external/embedded facts, SVG active/external
     facts, and PDF text-layer present/absent/unknown states each have negative
     regressions and remain within the published schema.
+22. Two plugin builds from unchanged source with the same target and toolchains
+    produce byte-identical archives across timezones; archive headers normalize
+    ownership, permissions and timestamps. Links and special entries are
+    rejected rather than silently omitted. The checksum names the current
+    archive. Both Darwin and Linux packaging run this path in CI.

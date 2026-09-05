@@ -147,8 +147,10 @@ These are typed observations, not malware or policy verdicts.
 
 A release includes the Go library/core, `finspect` CLI, stdio MCP server, strict
 input/output schemas, product-local Codex Skill, plugin manifest, self-contained
-platform binary, project and third-party license notices, local marketplace
-bundle, checksums, and rerunnable checks. The Darwin release may also include
+platform Capability and transport-schema-probe binaries, a Provider Manifest
+whose launch commands resolve inside that same bundle, project and third-party
+license notices, local marketplace bundle, checksums, and rerunnable checks.
+The Darwin release may also include
 the minimal macOS app with the same native `finspect` binary bundled inside it.
 No network access is required at runtime.
 
