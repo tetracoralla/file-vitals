@@ -51,6 +51,10 @@ jobs:
       - name: Build and probe the native plugin bundle
         shell: bash
         run: |
+          python3 -m venv "$RUNNER_TEMP/file-vitals-check"
+          export PATH="$RUNNER_TEMP/file-vitals-check/bin:$PATH"
+          python3 -m pip install -r scripts/requirements-check.txt
+          python3 -m unittest discover -s scripts -p 'test_release_*.py'
           ./scripts/check_build_path_guard.sh
           ./scripts/check_app_build_path_guard.sh
           ./scripts/build_plugin.sh --replace

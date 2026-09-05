@@ -60,10 +60,13 @@ stage="${build_tmp}/${bundle_name}"
 mkdir -p "${stage}/runtime" "${stage}/.codex-plugin" "${stage}/skills" "${stage}/schemas" "${stage}/capabilities/schemas" "${stage}/docs" "${stage}/third_party_licenses"
 go build -trimpath -ldflags="-s -w" -o "${stage}/runtime/finspect" ./cmd/finspect
 go build -trimpath -ldflags="-s -w" -o "${stage}/runtime/file-vitals-capability" ./cmd/capability-adapter
+go build -trimpath -ldflags="-s -w" -o "${stage}/runtime/file-vitals-transport-schema-probe" ./cmd/transport-schema-probe
 cp "${repo_root}/.codex-plugin/plugin.json" "${stage}/.codex-plugin/plugin.json"
 cp -R "${repo_root}/skills/file-vitals" "${stage}/skills/file-vitals"
 cp "${repo_root}/schemas/"*.json "${stage}/schemas/"
-cp "${repo_root}/capabilities/provider.json" "${stage}/capabilities/provider.json"
+python3 "${repo_root}/scripts/render_release_provider_manifest.py" \
+  "${repo_root}/capabilities/provider.json" \
+  "${stage}/capabilities/provider.json"
 cp "${repo_root}/capabilities/schemas/"*.json "${stage}/capabilities/schemas/"
 cp "${repo_root}/docs/PRODUCT_MODEL.md" "${repo_root}/docs/REVIEW_CONTRACT.md" "${stage}/docs/"
 cp "${repo_root}/LICENSE" "${repo_root}/NOTICE" "${repo_root}/README.md" "${repo_root}/THIRD_PARTY_NOTICES.md" "${stage}/"
@@ -83,6 +86,9 @@ cat > "${stage}/.mcp.json" <<'JSON'
 JSON
 
 mv "${stage}" "${target}"
+python3 "${repo_root}/scripts/render_release_provider_manifest.py" --check \
+  "${repo_root}/capabilities/provider.json" \
+  "${target}/capabilities/provider.json"
 mkdir -p "${marketplace_plugins}"
 cat > "${marketplace_file}" <<JSON
 {
@@ -106,6 +112,8 @@ if [[ -L "${archive}" || -L "${checksum}" ]]; then
   exit 1
 fi
 rm -f -- "${archive}" "${checksum}"
-tar -C "${dist_root}" -czf "${archive}" "${bundle_name}"
+python3 "${repo_root}/scripts/create_release_archive.py" \
+  "${target}" "${build_tmp}/${bundle_name}.tar.gz"
+mv "${build_tmp}/${bundle_name}.tar.gz" "${archive}"
 (cd "${dist_root}" && shasum -a 256 "${bundle_name}.tar.gz" > "${bundle_name}.tar.gz.sha256")
 echo "${target}"
